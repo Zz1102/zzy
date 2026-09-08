@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TYPE MONSTER - 终极平衡进化版</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #1a1a24; display: flex; justify-content: center; align-items: center; font-family: 'Press Start 2P', 'SimSun', sans-serif; user-select: none; }
+        
+        #console { width: 1100px; height: 820px; background: #d0d0d8; border-radius: 20px; box-shadow: 0 25px 50px rgba(0,0,0,0.8), inset 0 0 20px #fff; padding: 25px; box-sizing: border-box; position: relative; }
+        #screen { width: 100%; height: 100%; background: #f8f8f8; border: 4px solid #333; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+
+        /* 战斗场景基础设置 */
+        #battle-scene { flex: 1; position: relative; overflow: hidden; transition: background 1.5s ease-in-out; }
+        .ground { position: absolute; background: #66BB6A; border: 4px solid #4CAF50; border-radius: 50%; box-shadow: 0 10px 20px rgba(0,0,0,0.15); transition: background 1s ease-in-out; z-index: 1;}
+        
+        .enemy-ground { width: 400px; height: 120px; top: 160px; right: 80px; }
+        .player-ground { width: 520px; height: 140px; bottom: 0px; left: -20px; }
+        .sprite { position: absolute; font-size: 140px; filter: drop-shadow(5px 15px 5px rgba(0,0,0,0.3)); transition: all 0.2s; z-index: 5; }
+        .enemy-sprite { top: 60px; right: 190px; }
+        .player-sprite { bottom: 40px; left: 140px; transform: scaleX(-1); }
+
+        #weather-ui { position: absolute; top: 15px; right: 20px; background: rgba(0,0,0,0.6); color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 14px; font-weight: bold; border: 2px solid #fff; z-index: 10; display: flex; align-items: center; gap: 5px;}
+        #combo-ui { position: absolute; top: 25px; left: 50%; transform: translateX(-50%); font-size: 32px; font-style: italic; font-weight: bold; color: #ffeb3b; text-shadow: 2px 2px 0 #d84315, -1px -1px 0 #000; z-index: 10; display: none; }
+        @keyframes comboPop { 0% { transform: translateX(-50%) scale(1.5); } 100% { transform: translateX(-50%) scale(1); } }
+
+        /* 左侧战局分析面板 - 完美错开敌方血条 */
+        .analysis-hud { position: absolute; left: 15px; top: 185px; width: 130px; background: rgba(20,20,30,0.85); color: #fff; border: 2px solid #48d0b0; border-radius: 8px; padding: 10px; font-size: 11px; z-index: 10; }
+        .analysis-title { font-size: 12px; font-weight: bold; margin-bottom: 6px; color: #ffeb3b; text-align: center; }
+        .analysis-line { height: 1px; background: #555; margin: 6px 0; }
+        .analysis-row { margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .analysis-btn { width: 100%; background: #48d0b0; border: none; padding: 6px; border-radius: 4px; color: #000; font-weight: bold; cursor: pointer; margin-top: 6px; font-family: inherit; font-size: 11px; transition: 0.1s;}
+        .analysis-btn:hover { background: #fff; }
+
+        #paralyze-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(248, 208, 48, 0.4); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 40px; color: #fff; font-weight: bold; text-shadow: 2px 2px 0 #000, -2px -2px 0 #000; animation: flashParalyze 0.5s infinite alternate; }
+        @keyframes flashParalyze { 0% { background: rgba(248, 208, 48, 0.2); } 100% { background: rgba(248, 208, 48, 0.6); } }
+
+        #center-typing { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(20, 20, 30, 0.85); border: 4px solid #48d0b0; border-radius: 12px; padding: 30px 50px; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.6); z-index: 150; backdrop-filter: blur(8px); }
+        #center-typing.error { border-color: #f85838; box-shadow: 0 0 40px rgba(248,88,56,0.6); }
+        #ct-title { font-size: 18px; color: #fff; margin-bottom: 10px; font-weight: bold; }
+        #ct-mistakes { font-size: 14px; color: #f85838; margin-bottom: 12px; height: 14px; font-weight: bold; }
+        #ct-word { font-size: 46px; font-family: monospace; font-weight: bold; letter-spacing: 5px;}
+        #ct-word .typed { color: #48d0b0; text-shadow: 2px 2px 0 #000; }
+        #ct-word .untyped { color: #aaa; }
+        #ct-tip { font-size: 12px; color: #888; margin-top: 18px; }
+
+        .hud { position: absolute; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(4px); border: 3px solid rgba(0, 0, 0, 0.2); border-radius: 10px; padding: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); color: #333; font-weight: bold; z-index: 10; }
+        
+        /* 敌人面板缩小 */
+        .enemy-hud { top: 15px; left: 15px; width: 260px; }
+        .player-hud { bottom: 25px; right: 25px; width: 540px; display: flex; flex-direction: row; gap: 15px; align-items: center; }
+        
+        .party-avatars { display: flex; flex-direction: row; align-items: center; justify-content: center; border-right: 2px dashed rgba(0,0,0,0.2); padding-right: 15px; gap: 8px; flex-wrap: wrap;}
+        
+        /* 敌方阵容迷你指示器紧缩 */
+        .enemy-party-avatars { display: flex; flex-direction: row; gap: 4px; margin-bottom: 6px; }
+        .enemy-mini-av { width: 20px; height: 20px; border-radius: 50%; background: #ddd; border: 2px solid #555; display: flex; align-items: center; justify-content: center; font-size: 10px; filter: grayscale(0.2); transition: 0.2s;}
+        .enemy-mini-av.active { border-color: #f85838; background: #ffe0d0; filter: grayscale(0); transform: scale(1.15); box-shadow: 0 0 5px rgba(248,88,56,0.5);}
+        .enemy-mini-av.fainted { background: #333; border-color: #111; filter: grayscale(1); opacity: 0.4; }
+
+        .hud-info { flex: 1; display: flex; flex-direction: column; justify-content: center; position: relative;}
+
+        .av-btn { background: #eee; border: 2px solid #aaa; border-radius: 6px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; position: relative; transition: 0.2s; overflow: hidden; }
+        .av-btn:hover:not(.disabled) { border-color: #3890f8; transform: translateY(-2px); }
+        .av-btn.active { border-color: #48d0b0; background: #e0f8f0; transform: scale(1.1); box-shadow: 0 0 10px rgba(72,208,176,0.5); }
+        .av-btn.fainted { filter: grayscale(1); opacity: 0.5; border-color: #f85838; }
+        .av-btn.disabled { filter: grayscale(0.5); border-color: #aaa; cursor: not-allowed; }
+        .av-hk { position: absolute; top: 0px; left: 0px; background: rgba(0,0,0,0.7); color: #fff; font-size: 11px; padding: 2px 4px; border-radius: 0 0 4px 0; z-index: 10; font-family: monospace; }
+        .av-hp-bar { position: absolute; bottom: 0px; left: 0; width: 100%; height: 5px; background: #ccc; z-index: 3;}
+        .av-hp-fill { height: 100%; background: #48d0b0; }
+        .av-cd { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); color: #fff; display: none; align-items: center; justify-content: center; font-size: 12px; z-index: 5; font-weight: bold;}
+
+        .hud-header { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+        .hp-box, .exp-box { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .hp-label { color: #f8b020; font-size: 13px; font-family: monospace; }
+        .exp-label { font-size: 11px; color: #666; width: 30px;}
+        .hp-bar-bg, .exp-bar-bg { flex: 1; height: 8px; background: rgba(0,0,0,0.15); border-radius: 4px; overflow: hidden; }
+        .exp-bar-bg { height: 6px; }
+        .hp-bar-fill { height: 100%; background: #48d0b0; transition: width 0.3s; }
+        .exp-bar-fill { height: 100%; background: #3890f8; width: 0%; transition: width 0.1s linear;}
+        .hp-numbers { text-align: right; font-size: 13px; margin-top: 5px; font-family: monospace;}
+
+        .enemy-intent { margin-top: 6px; padding: 5px; background: #fff0f0; border: 1px dashed #f85838; font-size: 11px; color: #f85838; border-radius: 4px; text-align: center; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        
+        .status-badges { display: flex; gap: 5px; margin-top: 6px; height: 18px; flex-wrap: wrap;}
+        .badge { font-size: 10px; padding: 2px 5px; border-radius: 4px; color: #fff; display: none; }
+        .badge.brn { background: #f85838; } .badge.def { background: #90a0c8; } .badge.par { background: #f8d030; color: #000; } 
+        .badge.atkUp { background: #f85838; } .badge.defUp { background: #3890f8; } 
+        .badge.accUp { background: #48d0b0; } .badge.evaUp { background: #8a2be2; } .badge.accDown { background: #555; } .badge.heal { background: #4CAF50; }
+
+        /* 底部操作区 */
+        #ui-panel { height: 180px; display: flex; border-top: 5px solid #333; background: #fff; z-index: 10; }
+        #text-box { flex: 1.1; padding: 20px 25px; display: flex; justify-content: space-between; align-items: center; border-right: 4px solid #333; position: relative; font-weight: bold; background: #f4f4f4; }
+        #text-content { font-size: 15px; line-height: 1.8; flex: 1; padding-right: 15px;}
+        
+        .action-panel-btn { width: 75px; height: 60px; background: #e8f5e9; border: 3px solid #2E7D32; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: 0.1s; flex-shrink: 0; box-shadow: 0 4px 0 #2E7D32; overflow: hidden; margin: 0;}
+        .action-panel-btn:active:not(.disabled) { transform: translateY(4px); box-shadow: 0 0 0 #2E7D32; }
+        .action-panel-btn:hover:not(.disabled) { background: #c8e6c9; }
+        .action-panel-btn.disabled { filter: grayscale(1); cursor: not-allowed; opacity: 0.6; box-shadow: none; transform: translateY(4px); border-color: #888; background: #ddd; }
+        .action-panel-btn.active { background: #c8e6c9; transform: translateY(4px); box-shadow: 0 0 0 #2E7D32; }
+        .action-panel-btn .icon { font-size: 22px; line-height: 1; margin-bottom: 2px; }
+        .action-panel-btn .label { font-size: 11px; font-weight: bold; color: #2E7D32; font-family: sans-serif;}
+        .mini-hk { position: absolute; top: 0px; left: 0px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 2px 4px; border-radius: 0 0 6px 0; z-index: 10;}
+        .cd-overlay-mini { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.65); color: #fff; display: none; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; z-index: 5;}
+
+        #menu-panel { flex: 1.9; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 10px; gap: 8px; background: #e0e0e0; }
+        .move-btn { background: #fff; border: 3px solid #b0b0b0; border-radius: 8px; position: relative; overflow: hidden; font-family: inherit; font-size: 13px; cursor: pointer; text-align: left; font-weight: bold; padding: 8px 12px; transition: 0.1s; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+        .move-btn:hover:not(.on-cd):not(.no-pp) { border-color: #48d0b0; transform: translateY(-2px); }
+        .move-btn.active { border-color: #f85838; background: #ffe0d0; }
+        .move-btn.on-cd { cursor: not-allowed; border-color: #aaa; background: #ddd; color: #888; }
+        .move-btn.no-pp { filter: grayscale(1); opacity: 0.6; cursor: not-allowed; border-color: #888; background: #eee; color: #666; }
+        .move-btn.no-pp:hover { transform: none; border-color: #888; }
+
+        .skill-tags { display: flex; gap: 5px; margin-top: 3px; flex-wrap: wrap; }
+        .stag { font-size: 10px; padding: 2px 4px; border-radius: 4px; color: #fff; line-height: 1; }
+        .stag.brn { background: #f85838; } .stag.def { background: #3890f8; } .stag.par { background: #f8d030; color: #000; } 
+        .stag.atkUp { background: #f85838; } .stag.defUp { background: #3890f8; } 
+        .stag.accUp { background: #48d0b0; } .stag.evaUp { background: #8a2be2; } .stag.accDown { background: #555; } .stag.heal { background: #4CAF50; }
+
+        .cd-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); color: #fff; display: none; align-items: center; justify-content: center; font-size: 18px; z-index: 5; }
+
+        .attack-player { transform: scaleX(-1) translate(-50px, -50px); }
+        .attack-enemy { transform: translate(-50px, 50px); }
+        .hurt { filter: drop-shadow(0 0 0 #000) brightness(2) opacity(0.5); transform: translateX(20px); }
+        .faint { transform: translateY(120px); opacity: 0; transition: all 0.5s; }
+        
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-6px); } }
+        
+        .floating-text { position: absolute; font-size: 24px; font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff; z-index: 100; text-align: center; }
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(1.1); opacity: 0; } }
+        .vfx-particle { position: absolute; font-size: 40px; pointer-events: none; z-index: 100; text-shadow: 0 0 5px rgba(255,255,255,0.8); }
+
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(20, 20, 30, 0.95); z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-weight: bold; }
+        .hidden { display: none !important; }
+        
+        .setup-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; width: 95%; }
+        .card { display: flex; flex-direction: row; align-items: center; padding: 12px 15px; background: rgba(0,0,0,0.5); border: 2px solid #555; border-radius: 8px; cursor: pointer; transition: 0.2s; text-align: left; position: relative; }
+        .card:hover { border-color: #fff; background: rgba(255,255,255,0.2); }
+        .card.selected { border-color: #f8d030; background: rgba(248,208,48,0.3); }
+        .card-icon { font-size: 40px; margin-right: 15px; filter: drop-shadow(2px 4px 2px rgba(0,0,0,0.5));}
+        .card-info { flex: 1; display: flex; flex-direction: column;}
+        .card-desc { font-size: 11px; line-height: 1.5; margin-top: 4px; padding: 4px 6px; background: rgba(255,255,255,0.1); border-radius: 4px; font-family: sans-serif; font-weight: bold;}
+        .order-badge { position: absolute; top: -10px; right: -10px; width: 24px; height: 24px; background: #f8d030; color: #000; border-radius: 50%; font-size: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; z-index: 5;}
+        
+        .diff-container { display: flex; gap: 12px; margin-top: 5px; margin-bottom: 5px; }
+        .diff-btn { padding: 10px 16px; background: rgba(255,255,255,0.1); border: 2px solid #555; border-radius: 6px; cursor: pointer; font-size: 13px; transition: 0.2s; }
+        .diff-btn:hover { background: rgba(255,255,255,0.2); border-color: #aaa; }
+        .diff-btn.selected { background: rgba(72,208,176,0.2); border-color: #48d0b0; color: #48d0b0; box-shadow: 0 0 10px rgba(72,208,176,0.4); }
+
+        .btn { background: #f8f8f8; border: 3px solid #333; color: #333; padding: 14px 28px; font-size: 16px; cursor: pointer; font-weight: bold; font-family: inherit; transition: 0.2s; border-radius: 8px; }
+        .btn:not(:disabled):hover { background: #48d0b0; color: #fff; border-color: #fff; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        h1 { color: #f8d030; margin-bottom: 10px; font-size: 26px;}
+
+        #matrix-overlay { padding: 30px; box-sizing: border-box; }
+        #matrix-content { background:#fff; border-radius:12px; width: 85%; flex: 1; min-height: 0; overflow-y: auto; padding: 20px; margin-bottom: 20px; color: #333; box-sizing: border-box; }
+        .matrix-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: center; font-family: sans-serif; color: #333; }
+        .matrix-table th, .matrix-table td { border: 1px solid #ccc; padding: 6px 4px; }
+        .matrix-table th { background: #f0f0f0; position: sticky; top: 0; z-index: 2; }
+        .matrix-table td.strong { background: #ffcdd2; color: #d32f2f; font-weight: bold;}
+        .matrix-table td.weak { background: #c8e6c9; color: #2e7d32; }
+    </style>
+</head>
+<body>
+
+    <div id="console">
+        <div id="screen">
+            <div id="setup-screen" class="overlay">
+                <h1>打字幻兽 - 终极生态版</h1>
+                <p style="color:#ccc; font-size: 12px; margin-bottom: 15px;">攻击附带概率统一为 1/3，纯变化技能更易触发。防范致命麻痹！</p>
+                
+                <div class="setup-container" id="roster-select">
+                    <!-- 12只宝可梦 -->
+                    <div class="card" id="st-fire" onclick="toggleRoster('fire')"><div class="card-icon">🐲</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">炽焰龙</div><div style="color:#f85838; font-size:11px;">火系 | ☀️烈日</div><div class="card-desc"><span style="color:#81c784">克: 草/冰/钢</span><br><span style="color:#e57373">弱: 水/岩</span></div></div></div>
+                    <div class="card" id="st-water" onclick="toggleRoster('water')"><div class="card-icon">🐳</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">沧海巨兽</div><div style="color:#3890f8; font-size:11px;">水系 | 🌧️大雨</div><div class="card-desc"><span style="color:#81c784">克: 火/岩</span><br><span style="color:#e57373">弱: 草/电</span></div></div></div>
+                    <div class="card" id="st-grass" onclick="toggleRoster('grass')"><div class="card-icon">🦌</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">森灵鹿</div><div style="color:#48d0b0; font-size:11px;">草系 | 🍃青草</div><div class="card-desc"><span style="color:#81c784">克: 水/岩</span><br><span style="color:#e57373">弱: 火/飞/毒/冰</span></div></div></div>
+                    <div class="card" id="st-electric" onclick="toggleRoster('electric')"><div class="card-icon">🐕</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">疾风雷犬</div><div style="color:#f8d030; font-size:11px;">电系 | ⚡电气</div><div class="card-desc"><span style="color:#81c784">克: 水/飞</span><br><span style="color:#e57373">弱: 岩</span></div></div></div>
+                    <div class="card" id="st-ice" onclick="toggleRoster('ice')"><div class="card-icon">🐻‍❄️</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">冰霜巨熊</div><div style="color:#98d8d8; font-size:11px;">冰系 | ❄️冰雹</div><div class="card-desc"><span style="color:#81c784">克: 草/飞</span><br><span style="color:#e57373">弱: 火/钢/岩</span></div></div></div>
+                    <div class="card" id="st-dark" onclick="toggleRoster('dark')"><div class="card-icon">🐈‍⬛</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">幽影猫</div><div style="color:#705848; font-size:11px;">暗系 | 🌙暗夜</div><div class="card-desc"><span style="color:#81c784">克: 超能</span><br><span style="color:#e57373">弱: 妖精</span></div></div></div>
+                    <div class="card" id="st-fairy" onclick="toggleRoster('fairy')"><div class="card-icon">🦋</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">光辉蝶</div><div style="color:#f8a0d0; font-size:11px;">妖精 | 🍃青草</div><div class="card-desc"><span style="color:#81c784">克: 暗</span><br><span style="color:#e57373">弱: 毒/钢</span></div></div></div>
+                    <div class="card" id="st-steel" onclick="toggleRoster('steel')"><div class="card-icon">🤖</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">钢铁机甲</div><div style="color:#b8b8d0; font-size:11px;">钢系 | ⚡电气</div><div class="card-desc"><span style="color:#81c784">克: 妖/冰/岩</span><br><span style="color:#e57373">弱: 火</span></div></div></div>
+                    <div class="card" id="st-rock" onclick="toggleRoster('rock')"><div class="card-icon">🪨</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">大地巨灵</div><div style="color:#b8a038; font-size:11px;">岩石 | 无特定</div><div class="card-desc"><span style="color:#81c784">克: 飞/火/冰</span><br><span style="color:#e57373">弱: 水/草/钢</span></div></div></div>
+                    <div class="card" id="st-flying" onclick="toggleRoster('flying')"><div class="card-icon">🦅</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">翔天苍鹰</div><div style="color:#a890f0; font-size:11px;">飞行 | 无特定</div><div class="card-desc"><span style="color:#81c784">克: 草</span><br><span style="color:#e57373">弱: 电/岩/冰</span></div></div></div>
+                    <div class="card" id="st-poison" onclick="toggleRoster('poison')"><div class="card-icon">🐍</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">剧毒灵蛇</div><div style="color:#a040a0; font-size:11px;">毒系 | 忌🍃青草</div><div class="card-desc"><span style="color:#81c784">克: 草/妖精</span><br><span style="color:#e57373">弱: 超能</span></div></div></div>
+                    <div class="card" id="st-psychic" onclick="toggleRoster('psychic')"><div class="card-icon">🦊</div><div class="card-info"><div style="font-weight:bold; font-size:14px; margin-bottom:2px; color:#fff;">幻梦神狐</div><div style="color:#f85888; font-size:11px;">超能 | 🌙暗夜</div><div class="card-desc"><span style="color:#81c784">克: 毒</span><br><span style="color:#e57373">弱: 暗</span></div></div></div>
+                </div>
+
+                <div style="color: #fff; font-size: 14px; margin-top: 5px;">选择挑战难度：</div>
+                <div class="diff-container" id="diff-select">
+                    <div class="diff-btn" id="diff-easy" onclick="selectDiff('easy')">路人</div>
+                    <div class="diff-btn selected" id="diff-normal" onclick="selectDiff('normal')">道馆馆主</div>
+                    <div class="diff-btn" id="diff-hard" onclick="selectDiff('hard')">四大天王</div>
+                    <div class="diff-btn" id="diff-expert" onclick="selectDiff('expert')">冠军之路</div>
+                </div>
+                <div id="diff-desc" style="color:#aaa; font-size:12px; margin-bottom: 15px; height: 16px;">标准战斗。AI 出招速度适中，拥有 15% 失误打空几率。</div>
+
+                <div style="display:flex; gap:15px; justify-content: center;">
+                    <button class="btn" id="start-battle-btn" disabled onclick="startBattle()">⚔️ 进入战斗</button>
+                </div>
+            </div>
+
+            <!-- 克制矩阵全屏模态框 -->
+            <div id="matrix-overlay" class="overlay hidden" style="z-index: 250;">
+                <h2 style="color: #ffeb3b; font-size: 24px; margin-top:0; flex-shrink: 0;">详细战术数据中心</h2>
+                <div id="matrix-content"></div>
+                <button class="btn" style="flex-shrink: 0;" onclick="hideMatrix()">关闭面板</button>
+            </div>
+
+            <div id="end-screen" class="overlay hidden">
+                <h1 id="end-title" style="font-size:32px;"></h1>
+                <p id="end-desc" style="font-size: 20px; line-height: 2; margin-bottom: 30px; text-align: center;"></p>
+                <button class="btn" onclick="location.reload()">再来一局</button>
+            </div>
+
+            <div id="center-typing" class="hidden">
+                <div id="ct-title">准备行动...</div>
+                <div id="ct-mistakes"></div>
+                <div id="ct-word"><span class="typed"></span><span class="untyped"></span></div>
+                <div id="ct-tip">你必须输完单词！按 ESC 取消</div>
+            </div>
+
+            <div id="battle-scene">
+                <div id="weather-ui">🌈 天气：晴空万里</div>
+                <div id="combo-ui">0 COMBO!</div>
+
+                <!-- 实时战局分析HUD：精细微缩，避免遮挡敌方血条 -->
+                <div class="analysis-hud">
+                    <div class="analysis-title">实时战局分析</div>
+                    <div class="analysis-row">我方: <span id="ana-ptype" style="color:#48d0b0">--</span></div>
+                    <div class="analysis-row">敌方: <span id="ana-etype" style="color:#f85838">--</span></div>
+                    <div class="analysis-line"></div>
+                    <div class="analysis-row" title="我方本系打敌人的基准倍率">本系倍率: <span id="ana-atk">x1.0</span></div>
+                    <div class="analysis-row" title="敌人本系打我方的基准倍率">承伤倍率: <span id="ana-def">x1.0</span></div>
+                    <div class="analysis-row">附加命中: <span id="ana-acc">+0%</span></div>
+                    <div class="analysis-row">附加闪避: <span id="ana-eva">+0%</span></div>
+                    <button class="analysis-btn" onclick="showMatrix()">📜 查看矩阵表</button>
+                </div>
+
+                <div id="paralyze-overlay" class="hidden">
+                    ⚡ 身体麻痹了！
+                    <div style="font-size: 24px; margin-top: 20px;">剩余无法行动时间：<span id="par-timer">1.5</span> 秒</div>
+                </div>
+
+                <div class="hud enemy-hud">
+                    <div class="hud-header"><span id="e-name">野生精灵</span><span id="e-lv">Lv50</span></div>
+                    
+                    <div class="enemy-party-avatars" id="enemy-party-avatars"></div>
+
+                    <div class="hp-box">
+                        <span class="hp-label">HP</span>
+                        <div class="hp-bar-bg"><div class="hp-bar-fill" id="enemy-hp-fill"></div></div>
+                    </div>
+                    <div class="exp-box">
+                        <span class="exp-label">行动</span>
+                        <div class="exp-bar-bg"><div class="exp-bar-fill" id="enemy-atk-timer"></div></div>
+                    </div>
+                    <div class="enemy-intent" id="enemy-intent">正在准备：???</div>
+                    <div class="status-badges">
+                        <div class="badge brn" id="badge-brn">烧伤</div>
+                        <div class="badge def" id="badge-def">防御↓</div>
+                        <div class="badge accDown" id="badge-accDown">命中↓</div>
+                        <div class="badge par" id="badge-par">麻痹</div>
+                    </div>
+                </div>
+
+                <div class="hud player-hud">
+                    <div class="party-avatars" id="player-party-avatars"></div>
+                    <div class="hud-info">
+                        <div class="hud-header"><span id="p-name">我的精灵</span><span>Lv50</span></div>
+                        <div class="hp-box">
+                            <span class="hp-label">HP</span>
+                            <div class="hp-bar-bg"><div class="hp-bar-fill" id="player-hp-fill"></div></div>
+                        </div>
+                        <div class="hp-numbers" id="player-hp-txt">300 / 300</div>
+                        <div class="status-badges" style="justify-content: flex-end;">
+                            <div class="badge atkUp" id="p-badge-atk">攻击↑</div>
+                            <div class="badge defUp" id="p-badge-def">防御↑</div>
+                            <div class="badge accUp" id="p-badge-acc">命中↑</div>
+                            <div class="badge evaUp" id="p-badge-eva">闪避↑</div>
+                            <div class="badge par" id="p-badge-par">被麻痹</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ground enemy-ground" id="e-ground"></div>
+                <div class="ground player-ground" id="p-ground"></div>
+                <div class="sprite enemy-sprite" id="enemy-sprite">❓</div>
+                <div class="sprite player-sprite" id="player-sprite">❓</div>
+            </div>
+
+            <div id="ui-panel">
+                <div id="text-box">
+                    <div id="text-content">系统加载中...</div>
+                    <div style="display:flex; flex-direction: column; gap: 10px; margin-left: 20px;">
+                        <div id="mini-refresh-btn" class="action-panel-btn" onclick="startAction('refresh')" title="刷新当前 4 个技能（继承冷却，补满PP）">
+                            <div id="refresh-cd-overlay" class="cd-overlay-mini"></div>
+                            <div class="mini-hk">F</div>
+                            <div class="icon">🔄</div>
+                            <div class="label">洗牌</div>
+                        </div>
+                        <div id="mini-heal-btn" class="action-panel-btn" onclick="startAction('heal')" title="恢复 100 HP">
+                            <div id="heal-cd-overlay" class="cd-overlay-mini"></div>
+                            <div class="mini-hk">H</div>
+                            <div class="icon">💊</div>
+                            <div class="label" id="potion-count">x3</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="menu-panel"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // 难度设置
+    const diffSettings = {
+        'easy': { spd: 1.5, lv: 'Lv 30', aiMiss: 0.3 },
+        'normal': { spd: 1.0, lv: 'Lv 50', aiMiss: 0.15 },
+        'hard': { spd: 0.75, lv: 'Lv 70', aiMiss: 0.05 },
+        'expert': { spd: 0.5, lv: 'Lv 99', aiMiss: 0.01 }
+    };
+    let currentDiff = 'normal';
+
+    const diffDesc = {
+        'easy': '休闲体验。AI出招缓慢，且有 30% 几率打空。',
+        'normal': '标准战斗。AI 出招速度适中，拥有 15% 失误打空几率。',
+        'hard': '考验手速！AI 出招较快，仅有 5% 几率失误。',
+        'expert': '极限地狱。AI 出招极快，仅有 1% 的奇迹概率会失误！'
+    };
+
+    function selectDiff(diff) {
+        currentDiff = diff;
+        document.querySelectorAll('.diff-btn').forEach(btn => btn.classList.remove('selected'));
+        document.getElementById('diff-' + diff).classList.add('selected');
+        document.getElementById('diff-desc').innerText = diffDesc[diff];
+    }
+
+    const weathers = ['clear', 'sunny', 'rainy', 'grassy', 'hail', 'electric', 'darknight'];
+    const weatherNames = {
+        'clear': '🌤️ 晴空万里', 'sunny': '☀️ 烈日当空 (火↑ 水↓)', 'rainy': '🌧️ 瓢泼大雨 (水↑ 火↓)',
+        'grassy': '🍃 青草场地 (草↑)', 'hail': '❄️ 冰雹天气 (冰↑)', 'electric': '⚡ 电气场地 (电↑)', 'darknight': '🌙 暗夜降临 (暗↑)'
+    };
+    
+    const weatherColors = {
+        'clear': 'radial-gradient(circle at 80% 20%, #fff59d 5%, transparent 6%), linear-gradient(to bottom, #4facfe 0%, #00f2fe 50%, #87CEEB 100%)',
+        'sunny': 'radial-gradient(circle at 50% 30%, #fff9c4 10%, #ff9800 40%, transparent 80%), linear-gradient(to bottom, #e65100, #ffb300, #ffcc80)',
+        'rainy': 'repeating-linear-gradient(15deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 1px, transparent 2px, transparent 12px), linear-gradient(to bottom, #263238, #546e7a, #90a4ae)',
+        'grassy': 'radial-gradient(circle at 20% 10%, rgba(255,255,255,0.3) 10%, transparent 40%), linear-gradient(to bottom, #aed581, #66bb6a, #2e7d32)',
+        'hail': 'repeating-linear-gradient(105deg, rgba(255,255,255,0.3) 0px, rgba(255,255,255,0.3) 2px, transparent 3px, transparent 25px), linear-gradient(to bottom, #b2ebf2, #80deea, #4dd0e1)',
+        'electric': 'radial-gradient(circle at 50% 0%, #fbc02d 0%, transparent 50%), linear-gradient(to bottom, #311b92, #4527a0, #7b1fa2)',
+        'darknight': 'radial-gradient(circle at 20% 20%, #e0e0e0 4%, transparent 5%), linear-gradient(to bottom, #121212, #212121, #37474f)'
+    };
+    
+    let currentWeather = 'clear'; let weatherTimer = 20.0; let currentCombo = 0;
+
+    function changeWeather() {
+        let pool = weathers.filter(w => w !== currentWeather);
+        currentWeather = pool[Math.floor(Math.random() * pool.length)];
+        document.getElementById('weather-ui').innerText = weatherNames[currentWeather];
+        document.getElementById('battle-scene').style.background = weatherColors[currentWeather];
+        spawnText(weatherNames[currentWeather].split(' ')[1], true, '#fff');
+    }
+
+    function updateCombo() {
+        const ui = document.getElementById('combo-ui');
+        if (currentCombo > 0) {
+            ui.style.display = 'block'; ui.innerText = `${currentCombo} COMBO!`;
+            ui.style.animation = 'none'; void ui.offsetWidth; ui.style.animation = 'comboPop 0.2s ease-out forwards';
+        } else { ui.style.display = 'none'; }
+    }
+
+    const baseWordsStr = "act,add,age,aim,air,art,ask,bad,bag,bar,bed,big,bit,box,boy,bug,bus,buy,car,cat,cow,cry,cup,cut,day,dog,dry,ear,eat,egg,end,eye,far,fat,few,fit,fly,fun,gas,get,god,guy,hat,hit,hot,how,ice,job,joy,key,kid,law,leg,let,lip,log,low,mad,man,map,mix,net,new,now,nut,oil,old,one,out,own,pan,pay,pen,pet,pie,pig,pin,pot,put,red,run,sad,say,sea,see,set,shy,sit,sky,son,sun,tax,tea,ten,tie,top,toy,try,two,use,war,way,wet,win,yes,zoo,able,also,area,army,baby,back,ball,band,bank,base,bear,beat,bell,best,bird,blow,blue,boat,body,bone,book,born,boss,bowl,burn,call,camp,care,case,cash,cell,chat,city,club,coat,cold,come,cook,cool,copy,cost,dark,date,dead,deal,deep,deer,desk,diet,door,down,draw,drop,duck,dust,duty,each,earn,east,easy,edge,even,ever,evil,face,fact,fair,fall,farm,fast,fear,feel,fill,find,fine,fire,fish,five,flat,flow,food,foot,form,four,free,frog,from,full,fund,game,gate,gift,girl,give,glad,goal,goat,gold,good,gray,grow,hair,half,hall,hand,hard,hate,have,head,hear,heat,help,here,hide,high,hill,hold,hole,home,hope,horn,host,hour,huge,hunt,hurt,idea,inch,into,iron,item,join,jump,just,keep,kick,kill,kind,king,kiss,knee,know,lack,lady,lake,land,last,late,lead,leaf,lean,left,less,life,lift,like,line,link,list,live,load,loan,lock,long,look,lose,loss,loud,love,luck,main,make,male,many,mark,mass,meal,mean,meat,meet,menu,mild,milk,mind,mine,miss,moon,more,most,move,much,name,near,neck,need,news,next,nice,nine,note,open,pack,page,pain,pair,park,part,pass,past,path,peak,pick,pill,pine,pink,pipe,plan,play,plus,pool,poor,post,pull,pure,push,race,rain,rate,read,real,rent,rest,rich,ride,ring,rise,risk,road,rock,role,roof,room,root,rose,rule,rush,safe,sail,sale,salt,same,sand,save,seat,seed,seek,seem,sell,send,ship,shoe,shop,show,shut,sick,side,sign,silk,sing,sink,size,skin,slip,slow,snow,soap,soft,soil,sold,some,song,sort,soul,soup,sour,star,stay,step,stop,such,suit,sure,swim,tail,take,talk,tall,tank,tape,task,team,tear,tell,tent,term,test,text,than,that,then,thin,this,time,tiny,tone,tool,tour,town,tree,trip,true,tune,turn,twin,type,unit,upon,user,vast,very,view,vote,wait,wake,walk,wall,want,warm,wash,wave,weak,wear,weed,week,well,west,what,when,wide,wife,wild,will,wind,wine,wing,wire,wise,wish,wood,word,work,worm,yard,year,your,zero";
+    const baseWords = baseWordsStr.split(',');
+    let fullWordSet = new Set();
+    baseWords.forEach(w => {
+        fullWordSet.add(w);
+        if (w.length > 2) {
+            fullWordSet.add(w + "s"); fullWordSet.add(w + "ing"); fullWordSet.add(w + "er"); fullWordSet.add(w + "ly"); 
+            if (w.endsWith('e')) { fullWordSet.add(w.slice(0, -1) + "ing"); fullWordSet.add(w + "d"); } else { fullWordSet.add(w + "ed"); }
+        }
+    });
+    const finalWords = Array.from(fullWordSet); 
+    const shortWords = finalWords.filter(w => w.length <= 4);
+    const medWords = finalWords.filter(w => w.length > 4 && w.length <= 6);
+    const longWords = finalWords.filter(w => w.length > 6 && w.length <= 8);
+    const epicWords = finalWords.filter(w => w.length > 8);
+
+    const getWords = (dmg) => {
+        let pool = dmg >= 80 ? epicWords : (dmg >= 50 ? longWords : (dmg >= 30 ? medWords : shortWords));
+        if(pool.length < 5) pool = finalWords;
+        let targetCount = Math.min(3, pool.length);
+        let res = new Set(); while(res.size < targetCount) { res.add(pool[Math.floor(Math.random() * pool.length)]); }
+        return [...res];
+    };
+
+    let audioCtx = null;
+    function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if(audioCtx.state === 'suspended') audioCtx.resume(); }
+    function playTone(freq, type, duration, vol=0.1) {
+        if(!audioCtx) return;
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+    function playSfx(name) {
+        if(!audioCtx) return;
+        if(name === 'type') playTone(800, 'sine', 0.05, 0.05);
+        if(name === 'error') playTone(150, 'sawtooth', 0.3, 0.15);
+        if(name === 'hit') playTone(200, 'square', 0.1, 0.1);
+        if(name === 'supereffective') { playTone(400, 'square', 0.1, 0.1); setTimeout(()=>playTone(600, 'square', 0.1, 0.1), 100); }
+        if(name === 'notvery') playTone(150, 'triangle', 0.2, 0.1);
+        if(name === 'heal') { playTone(400, 'sine', 0.1, 0.1); setTimeout(()=>playTone(600, 'sine', 0.3, 0.1), 100); }
+        if(name === 'switch') { playTone(300, 'sine', 0.1, 0.1); setTimeout(()=>playTone(450, 'sine', 0.1, 0.1), 100); }
+    }
+
+    function createVFX(targetId, type) {
+        const target = document.getElementById(targetId); const scene = document.getElementById('battle-scene');
+        if(!target || !scene) return;
+        const rect = target.getBoundingClientRect(); const sceneRect = scene.getBoundingClientRect();
+        const startX = rect.left - sceneRect.left + rect.width / 2; const startY = rect.top - sceneRect.top + rect.height / 2;
+        const emojis = { 
+            fire: ['🔥','💥','💢'], water: ['💧','🌊','💦'], grass: ['🍃','🌿','✨'], 
+            electric: ['⚡','🌩️','✨'], ice: ['❄️','🧊','✨'], dark: ['🌑','🦇','💨'], 
+            fairy: ['✨','💖','🌸'], steel: ['⚙️','🛡️','💥'], rock: ['🪨','💥','⛰️'],
+            flying: ['🌪️','💨','🦅'], poison: ['☠️','🟣','💨'], psychic: ['🔮','✨','👁️'],
+            normal: ['💥','💨','🗯'] 
+        }[type] || ['💥'];
+        for(let i = 0; i < 6; i++) {
+            const el = document.createElement('div'); el.className = 'vfx-particle';
+            el.innerText = emojis[Math.floor(Math.random() * emojis.length)];
+            el.style.left = (startX - 15) + 'px'; el.style.top = (startY - 15) + 'px';
+            scene.appendChild(el);
+            const angle = Math.random() * Math.PI * 2; const dist = 50 + Math.random() * 60;
+            const dx = Math.cos(angle) * dist; const dy = Math.sin(angle) * dist;
+            el.animate([
+                { transform: 'translate(0, 0) scale(0.5)', opacity: 1 },
+                { transform: `translate(${dx}px, ${dy}px) scale(1.5) rotate(${Math.random()*90}deg)`, opacity: 0 }
+            ], { duration: 400 + Math.random()*300, easing: 'cubic-bezier(0.25, 1, 0.5, 1)' });
+            setTimeout(() => el.remove(), 700);
+        }
+    }
+
+    const pkmData = {
+        fire: { name: '炽焰龙', sprite: '🐲', type: 'fire', color: '#f85838', typeName: '火' },
+        water: { name: '沧海巨兽', sprite: '🐳', type: 'water', color: '#3890f8', typeName: '水' },
+        grass: { name: '森灵鹿', sprite: '🦌', type: 'grass', color: '#48d0b0', typeName: '草' },
+        electric: { name: '疾风雷犬', sprite: '🐕', type: 'electric', color: '#f8d030', typeName: '电' },
+        ice: { name: '冰霜巨熊', sprite: '🐻‍❄️', type: 'ice', color: '#98d8d8', typeName: '冰' },
+        dark: { name: '幽影猫', sprite: '🐈‍⬛', type: 'dark', color: '#705848', typeName: '暗' },
+        fairy: { name: '光辉蝶', sprite: '🦋', type: 'fairy', color: '#f8a0d0', typeName: '妖精' },
+        steel: { name: '钢铁机甲', sprite: '🤖', type: 'steel', color: '#b8b8d0', typeName: '钢' },
+        rock: { name: '大地巨灵', sprite: '🪨', type: 'rock', color: '#b8a038', typeName: '岩石' },
+        flying: { name: '翔天苍鹰', sprite: '🦅', type: 'flying', color: '#a890f0', typeName: '飞行' },
+        poison: { name: '剧毒灵蛇', sprite: '🐍', type: 'poison', color: '#a040a0', typeName: '毒' },
+        psychic: { name: '幻梦神狐', sprite: '🦊', type: 'psychic', color: '#f85888', typeName: '超能' }
+    };
+
+    const rawSkills = {
+        fire: [
+            ['龙爪', 'normal', 15, 0, null, 0, 1.0], ['火花', 'fire', 25, 2, 'brn', 0, 0.95], 
+            ['龙之舞', 'normal', 0, 8, 'atkUp', 0, 1.0], ['烈焰溅射', 'fire', 35, 3, 'brn', 0, 0.9], 
+            ['喷射火焰', 'fire', 55, 4, 'brn', 0, 0.85], ['大字爆炎', 'fire', 70, 5, 'brn', 0, 0.8], 
+            ['炼狱地狱', 'fire', 90, 8, 'brn', 0, 0.7], ['晨光', 'fire', 0, 10, 'healSelf', 0, 1.0], 
+            ['烟幕', 'normal', 0, 6, 'accDown', 0, 1.0]
+        ],
+        water: [
+            ['拍击', 'normal', 15, 0, null, 0, 1.0], ['水枪', 'water', 25, 2, null, 0, 0.95], 
+            ['生命水滴', 'water', 0, 10, 'healSelf', 0, 1.0], ['泡沫光线', 'water', 35, 3, 'def', 0, 0.9], 
+            ['冲浪', 'water', 55, 4, null, 0, 0.85], ['水炮', 'water', 70, 5, null, 0, 0.8], 
+            ['水龙卷', 'water', 90, 8, 'def', 0, 0.7], ['浊流', 'water', 45, 5, 'accDown', 0, 0.85], 
+            ['心之眼', 'normal', 0, 6, 'accUp', 0, 1.0]
+        ],
+        grass: [
+            ['撞击', 'normal', 15, 0, null, 0, 1.0], ['藤鞭', 'grass', 25, 2, null, 0, 0.95], 
+            ['光合作用', 'grass', 0, 10, 'healSelf', 0, 1.0], ['寄生种子', 'grass', 0, 5, 'par', 0, 0.9], 
+            ['能量球', 'grass', 55, 4, 'def', 0, 0.85], ['飞叶风暴', 'grass', 80, 6, 'def', 0, 0.75], 
+            ['疯狂植物', 'grass', 90, 8, 'par', 0, 0.7], ['闪光', 'normal', 0, 6, 'accDown', 0, 1.0], 
+            ['影子分身', 'normal', 0, 6, 'evaUp', 0, 1.0]
+        ],
+        electric: [
+            ['电击', 'electric', 25, 2, 'par', 0, 0.95], ['电磁波', 'electric', 0, 5, 'par', 0, 0.9],
+            ['十万伏特', 'electric', 55, 4, 'par', 0, 0.85], ['打雷', 'electric', 90, 8, 'par', 0, 0.7],
+            ['充电回复', 'electric', 0, 10, 'healSelf', 0, 1.0], ['高速移动', 'normal', 0, 6, 'evaUp', 0, 1.0],
+            ['神速突刺', 'normal', 40, 3, null, 0, 1.0]
+        ],
+        ice: [
+            ['细雪', 'ice', 25, 2, 'def', 0, 0.95], ['冰冻光束', 'ice', 55, 4, 'par', 0, 0.85],
+            ['暴风雪', 'ice', 90, 8, 'par', 0, 0.7], ['极光幕', 'ice', 0, 8, 'defUp', 0, 1.0],
+            ['冰晶活化', 'ice', 0, 10, 'healSelf', 0, 1.0], ['绝对零度', 'ice', 120, 12, null, 0, 0.4]
+        ],
+        dark: [
+            ['追打', 'dark', 30, 2, null, 0, 1.0], ['咬碎', 'dark', 50, 4, 'def', 0, 0.9],
+            ['恶之波动', 'dark', 70, 5, 'par', 0, 0.85], ['诡计', 'dark', 0, 8, 'atkUp', 0, 1.0],
+            ['暗影吸血', 'dark', 40, 6, 'healSelf', 0, 0.9], ['黑夜魔影', 'dark', 60, 5, 'accDown', 0, 0.85]
+        ],
+        fairy: [
+            ['妖精之风', 'fairy', 40, 3, 'def', 0, 0.95], ['魅惑之声', 'fairy', 50, 4, 'accDown', 0, 0.9],
+            ['月亮之力', 'fairy', 80, 6, 'atkUp', 0, 0.8], ['治愈之愿', 'fairy', 0, 10, 'healSelf', 0, 1.0],
+            ['天使之吻', 'fairy', 0, 5, 'par', 0, 0.85], ['光墙', 'normal', 0, 8, 'defUp', 0, 1.0]
+        ],
+        steel: [
+            ['金属爪', 'steel', 30, 2, null, 0, 1.0], ['铁头', 'steel', 60, 4, 'par', 0, 0.9],
+            ['加农光炮', 'steel', 80, 6, 'def', 0, 0.85], ['巨兽斩', 'steel', 100, 8, null, 0, 0.75],
+            ['铁壁', 'normal', 0, 8, 'defUp', 0, 1.0], ['金属音', 'steel', 0, 6, 'def', 0, 0.9]
+        ],
+        rock: [
+            ['落石', 'rock', 30, 2, null, 0, 0.9], ['岩石封锁', 'rock', 50, 4, 'accDown', 0, 0.85],
+            ['尖石攻击', 'rock', 90, 7, null, 0, 0.75], ['岩崩', 'rock', 75, 6, 'par', 0, 0.8],
+            ['隐形岩', 'rock', 0, 8, 'atkUp', 0, 1.0], ['沙暴遮蔽', 'rock', 0, 6, 'evaUp', 0, 1.0]
+        ],
+        flying: [
+            ['啄', 'flying', 20, 2, null, 0, 1.0], ['燕返', 'flying', 50, 4, 'accUp', 0, 1.0],
+            ['暴风', 'flying', 90, 8, 'par', 0, 0.7], ['勇鸟猛攻', 'flying', 110, 9, 'def', 0, 0.8],
+            ['羽栖', 'flying', 0, 10, 'healSelf', 0, 1.0], ['顺风', 'flying', 0, 6, 'evaUp', 0, 1.0]
+        ],
+        poison: [
+            ['毒针', 'poison', 25, 2, 'brn', 0, 0.95], ['毒尾', 'poison', 50, 4, 'def', 0, 0.9],
+            ['污泥炸弹', 'poison', 80, 6, 'brn', 0, 0.85], ['剧毒', 'poison', 0, 5, 'brn', 0, 0.85],
+            ['毒液陷阱', 'poison', 0, 6, 'accDown', 0, 0.9], ['溶化', 'poison', 0, 8, 'defUp', 0, 1.0]
+        ],
+        psychic: [
+            ['念力', 'psychic', 35, 3, 'par', 0, 0.95], ['精神强念', 'psychic', 75, 6, 'def', 0, 0.85],
+            ['预知未来', 'psychic', 100, 9, null, 0, 0.75], ['冥想', 'psychic', 0, 8, 'atkUp', 0, 1.0],
+            ['瞬间移动', 'psychic', 0, 6, 'evaUp', 0, 1.0], ['治愈波动', 'psychic', 0, 10, 'healSelf', 0, 1.0]
+        ]
+    };
+
+    const fullSkillPool = {};
+    for (const t in rawSkills) { 
+        fullSkillPool[t] = rawSkills[t].map((s, i) => {
+            let dmg = s[2]; let acc = s[6]; let effect = s[4];
+            // 【调整概率】攻击性技能=15% (原为1/3，按需改为更低)，非攻击性状态=40% 命中率加成
+            let prob = effect ? (dmg > 0 ? 0.15 : 0.4) : 0;
+            let pp = 15;
+            if (dmg >= 90) pp = 5;
+            else if (dmg >= 70) pp = 8;
+            else if (dmg >= 40) pp = 12;
+            else if (dmg === 0) pp = 10;
+            return { id: i, name: s[0], type: s[1], dmg: dmg, cdMax: s[3], effect: effect, prob: prob, acc: acc, ppMax: pp, words: getWords(dmg) };
+        }); 
+    }
+
+    let gameState = 'setup';
+    let rosterSelection = []; let pTeam = [], eTeam = []; let pIdx = 0, eIdx = 0;
+    
+    let pPotions = 3; let switchCd = 0; let healCd = 0; let refreshCd = 0;
+    let ePotions = 3; let eSwitchCd = 0; let eHealCd = 0; let eRefreshCd = 0;
+
+    let playerStatus = { atkUp: 0, defUp: 0, par: 0, accUp: 0, evaUp: 0 }; 
+    let DoTTimer = 0, lastTime = 0, animFrame = null;
+    const typingState = { active: false, actionType: null, index: null, targetStr: '', typedLen: 0, mistakes: 0 };
+    let enemyAction = { progress: 0, duration: 5.5, type: 'skill', skill: null, switchIdx: -1, status: { brn: 0, def: 0, par: 0, accDown: 0 }};
+
+    const typeChart = {
+        'fire': { 'grass': 1.3, 'ice': 1.3, 'steel': 1.3, 'water': 0.7, 'rock': 0.7, 'fire': 0.7 },
+        'water': { 'fire': 1.3, 'rock': 1.3, 'grass': 0.7, 'water': 0.7 },
+        'grass': { 'water': 1.3, 'rock': 1.3, 'fire': 0.7, 'ice': 0.7, 'flying': 0.7, 'poison': 0.7, 'grass': 0.7, 'steel': 0.7 },
+        'electric': { 'water': 1.3, 'flying': 1.3, 'rock': 0.7, 'electric': 0.7, 'grass': 0.7 },
+        'ice': { 'grass': 1.3, 'flying': 1.3, 'fire': 0.7, 'water': 0.7, 'steel': 0.7, 'ice': 0.7 },
+        'dark': { 'psychic': 1.3, 'fairy': 0.7, 'dark': 0.7 },
+        'fairy': { 'dark': 1.3, 'poison': 0.7, 'steel': 0.7, 'fire': 0.7 },
+        'steel': { 'fairy': 1.3, 'ice': 1.3, 'rock': 1.3, 'fire': 0.7, 'water': 0.7, 'electric': 0.7, 'steel': 0.7 },
+        'rock': { 'fire': 1.3, 'ice': 1.3, 'flying': 1.3, 'water': 0.7, 'grass': 0.7, 'steel': 0.7 },
+        'flying': { 'grass': 1.3, 'electric': 0.7, 'rock': 0.7, 'steel': 0.7 },
+        'poison': { 'grass': 1.3, 'fairy': 1.3, 'psychic': 0.7, 'poison': 0.7, 'rock': 0.7, 'steel': 0.7 },
+        'psychic': { 'poison': 1.3, 'dark': 0.7, 'psychic': 0.7, 'steel': 0.7 }
+    };
+
+    function getMult(atk, def) {
+        if(atk === 'normal') return 1.0;
+        if(typeChart[atk] && typeChart[atk][def]) return typeChart[atk][def];
+        return 1.0;
+    }
+
+    const weatherChart = {
+        'sunny': { 'fire': 1.3, 'grass': 1.1, 'water': 0.7, 'ice': 0.9 },
+        'rainy': { 'water': 1.3, 'electric': 1.1, 'fire': 0.7 },
+        'grassy': { 'grass': 1.3, 'fairy': 1.1, 'poison': 0.8 },
+        'hail': { 'ice': 1.3, 'flying': 0.9, 'grass': 0.9 },
+        'electric': { 'electric': 1.3, 'steel': 1.1, 'flying': 0.8 },
+        'darknight': { 'dark': 1.3, 'psychic': 1.1, 'fairy': 0.8 }
+    };
+
+    function getWeatherMult(type) {
+        if(weatherChart[currentWeather] && weatherChart[currentWeather][type]) return weatherChart[currentWeather][type];
+        return 1.0;
+    }
+
+    function buildMatrix() {
+        let html = '<h3 style="margin-top:0; font-size:14px; text-align:center;">【种族相克矩阵】 (行:攻击方 / 列:防守方)</h3>';
+        html += '<table class="matrix-table"><tr><th>攻\\守</th>';
+        let keys = Object.keys(pkmData);
+        keys.forEach(k => html += `<th>${pkmData[k].typeName}</th>`);
+        html += '</tr>';
+        keys.forEach(atk => {
+            html += `<tr><td><strong>${pkmData[atk].typeName}</strong></td>`;
+            keys.forEach(def => {
+                let m = getMult(atk, def);
+                let cls = m > 1.0 ? 'strong' : (m < 1.0 ? 'weak' : '');
+                let txt = m !== 1.0 ? m.toFixed(1) : '-';
+                html += `<td class="${cls}">${txt}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</table>';
+        
+        html += '<h3 style="font-size:14px; margin-top:15px; text-align:center;">【天气环境增削表】</h3>';
+        html += '<table class="matrix-table" style="width:70%; margin:0 auto;"><tr><th>天气</th><th>增强属性 (>1.0)</th><th>削弱属性 (<1.0)</th></tr>';
+        Object.keys(weatherChart).forEach(w => {
+           let buffs = [], nerfs = [];
+           Object.keys(weatherChart[w]).forEach(t => {
+               let val = weatherChart[w][t];
+               if (val > 1.0) buffs.push(`${pkmData[t].typeName}(${val.toFixed(1)})`);
+               else if (val < 1.0) nerfs.push(`${pkmData[t].typeName}(${val.toFixed(1)})`);
+           });
+           let wName = weatherNames[w].split(' ')[0] + ' ' + weatherNames[w].split(' ')[1];
+           html += `<tr><td>${wName}</td><td class="strong">${buffs.join(', ') || '-'}</td><td class="weak">${nerfs.join(', ') || '-'}</td></tr>`;
+        });
+        html += '</table>';
+        document.getElementById('matrix-content').innerHTML = html;
+    }
+
+    buildMatrix();
+    function showMatrix() { document.getElementById('matrix-overlay').classList.remove('hidden'); }
+    function hideMatrix() { document.getElementById('matrix-overlay').classList.add('hidden'); }
+
+    function updateAnalysisUI() {
+        if(pTeam.length === 0 || eTeam.length === 0) return;
+        const p = pTeam[pIdx], e = eTeam[eIdx];
+        document.getElementById('ana-ptype').innerText = `${p.name}(${pkmData[p.type].typeName})`;
+        document.getElementById('ana-etype').innerText = `${e.name}(${pkmData[e.type].typeName})`;
+        
+        let pAtkMult = getMult(p.type, e.type) * getWeatherMult(p.type);
+        document.getElementById('ana-atk').innerText = 'x' + pAtkMult.toFixed(2);
+        document.getElementById('ana-atk').style.color = pAtkMult > 1 ? '#f85838' : (pAtkMult < 1 ? '#48d0b0' : '#fff');
+
+        let eAtkMult = getMult(e.type, p.type) * getWeatherMult(e.type);
+        document.getElementById('ana-def').innerText = 'x' + eAtkMult.toFixed(2);
+        document.getElementById('ana-def').style.color = eAtkMult > 1 ? '#f85838' : (eAtkMult < 1 ? '#48d0b0' : '#fff');
+
+        let comboAccBonus = currentCombo * 0.005;
+        let accTotal = comboAccBonus + (playerStatus.accUp > 0 ? 0.3 : 0);
+        document.getElementById('ana-acc').innerText = `+${Math.floor(accTotal * 100)}%`;
+        
+        let evaTotal = playerStatus.evaUp > 0 ? 0.3 : 0;
+        document.getElementById('ana-eva').innerText = `+${Math.floor(evaTotal * 100)}%`;
+    }
+
+    function toggleRoster(type) {
+        const card = document.getElementById(`st-${type}`); const idx = rosterSelection.indexOf(type);
+        if (idx > -1) {
+            rosterSelection.splice(idx, 1); card.classList.remove('selected');
+            let badge = card.querySelector('.order-badge'); if(badge) badge.remove();
+        } else {
+            if (rosterSelection.length >= 6) return;
+            rosterSelection.push(type); card.classList.add('selected');
+            card.innerHTML += `<div class="order-badge">${rosterSelection.length}</div>`;
+        }
+        rosterSelection.forEach((t, i) => { const b = document.getElementById(`st-${t}`).querySelector('.order-badge'); if(b) b.innerText = i + 1; });
+        document.getElementById('start-battle-btn').disabled = rosterSelection.length < 1;
+    }
+
+    function startBattle() {
+        initAudio(); gameState = 'playing'; document.getElementById('setup-screen').classList.add('hidden');
+
+        pTeam = rosterSelection.map(t => {
+            let shuffled = JSON.parse(JSON.stringify(fullSkillPool[t])).sort(() => Math.random() - 0.5);
+            return { type: t, name: pkmData[t].name, sprite: pkmData[t].sprite, hp: 300, maxHp: 300, isFainted: false, 
+                     skills: shuffled.slice(0, 4).map(s => { s.currentCd = 0; s.currentPp = s.ppMax; return s; }) };
+        });
+
+        document.getElementById('e-lv').innerText = diffSettings[currentDiff].lv;
+
+        let eTypes = Object.keys(pkmData).sort(() => Math.random() - 0.5).slice(0, rosterSelection.length);
+        let eBaseHp = Math.floor(400 * diffSettings[currentDiff].hp);
+
+        eTeam = eTypes.map(t => {
+            let shuffled = JSON.parse(JSON.stringify(fullSkillPool[t])).sort(() => Math.random() - 0.5);
+            return { 
+                type: t, name: pkmData[t].name, sprite: pkmData[t].sprite, hp: eBaseHp, maxHp: eBaseHp, isFainted: false, 
+                skills: shuffled.slice(0, 4).map(s => { s.currentCd = 0; s.currentPp = s.ppMax; return s; }) 
+            };
+        });
+
+        pIdx = 0; eIdx = 0; 
+        pPotions = 3; switchCd = 0; healCd = 0; refreshCd = 0; currentCombo = 0;
+        ePotions = 3; eSwitchCd = 0; eHealCd = 0; eRefreshCd = 0;
+        playerStatus = { atkUp: 0, defUp: 0, par: 0, accUp: 0, evaUp: 0 };
+        currentWeather = 'clear'; weatherTimer = 20.0;
+        document.getElementById('battle-scene').style.background = weatherColors['clear'];
+        document.getElementById('weather-ui').innerText = weatherNames['clear'];
+        
+        updateCombo();
+        resetEnemyAction(); applyActivePokemon();
+        lastTime = performance.now(); animFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function applyActivePokemon() {
+        const p = pTeam[pIdx], e = eTeam[eIdx];
+        document.getElementById('p-name').innerText = p.name; document.getElementById('e-name').innerText = e.name;
+        document.getElementById('player-sprite').innerText = p.sprite; document.getElementById('enemy-sprite').innerText = e.sprite;
+        
+        const menu = document.getElementById('menu-panel'); menu.innerHTML = '';
+        const sKeys = ['Q', 'W', 'E', 'R'];
+        p.skills.forEach((s, i) => {
+            const typeStr = s.type === 'normal' ? '一般' : pkmData[s.type].typeName;
+            const tColor = s.type === 'normal' ? '#666' : pkmData[s.type].color;
+            let tagsHtml = '';
+            if(s.effect === 'brn') tagsHtml += `<span class="stag brn">🔥烧伤</span>`;
+            if(s.effect === 'def') tagsHtml += `<span class="stag def">🛡️降防</span>`;
+            if(s.effect === 'par') tagsHtml += `<span class="stag par">⚡麻痹</span>`;
+            if(s.effect === 'atkUp') tagsHtml += `<span class="stag atkUp">🗡️攻↑</span>`;
+            if(s.effect === 'defUp') tagsHtml += `<span class="stag defUp">🛡️防↑</span>`;
+            if(s.effect === 'accDown') tagsHtml += `<span class="stag accDown">盲目</span>`;
+            if(s.effect === 'evaUp') tagsHtml += `<span class="stag evaUp">💨闪避</span>`;
+            if(s.effect === 'accUp') tagsHtml += `<span class="stag accUp">🎯心眼</span>`;
+            if(s.effect === 'healSelf') tagsHtml += `<span class="stag heal">💖自愈</span>`;
+
+            let disabledClass = s.currentPp <= 0 ? 'no-pp' : '';
+            let ppColor = s.currentPp <= 2 ? '#f85838' : '#888';
+
+            menu.innerHTML += `
+                <button class="move-btn ${disabledClass}" id="btn-skill-${i}" onclick="startAction('skill', ${i})">
+                    <div class="cd-overlay" id="cd-${i}"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>[${sKeys[i]}] ${s.name}</span>
+                        <span style="font-size:10px; color:${ppColor};">PP:${s.currentPp}/${s.ppMax}</span>
+                    </div>
+                    <div style="font-size:11px; color:${tColor}; margin-top:2px;">${typeStr}系 | 威:${s.dmg} | 命${s.acc*100}%</div>
+                    <div class="skill-tags">${tagsHtml}</div>
+                </button>`;
+        });
+
+        const avContainer = document.getElementById('player-party-avatars'); avContainer.innerHTML = '';
+        pTeam.forEach((pk, i) => {
+            let hpPct = Math.max(0, pk.hp / pk.maxHp * 100);
+            let hpColor = hpPct > 50 ? '#48d0b0' : (hpPct > 20 ? '#f8d030' : '#f85838');
+            let isSwDisabled = (pk.isFainted || i === pIdx || switchCd > 0);
+            let classes = `av-btn ${i === pIdx ? 'active' : ''} ${pk.isFainted ? 'fainted' : ''} ${isSwDisabled && i !== pIdx && !pk.isFainted ? 'disabled' : ''}`;
+            
+            avContainer.innerHTML += `
+                <div class="${classes}" onclick="${!isSwDisabled ? `startAction('switch', ${i})` : ''}" title="${pk.name}">
+                    <div class="av-cd" id="av-cd-${i}"></div>
+                    <div class="av-hk">${i+1}</div>
+                    ${pk.sprite}
+                    <div class="av-hp-bar"><div class="av-hp-fill" style="width:${hpPct}%; background:${hpColor};"></div></div>
+                </div>`;
+        });
+
+        const eAvContainer = document.getElementById('enemy-party-avatars'); eAvContainer.innerHTML = '';
+        eTeam.forEach((pk, i) => {
+            let cls = 'enemy-mini-av';
+            if (pk.isFainted) cls += ' fainted';
+            if (i === eIdx) cls += ' active';
+            eAvContainer.innerHTML += `<div class="${cls}" title="${pk.name}">${pk.sprite}</div>`;
+        });
+
+        const healPanel = document.getElementById('mini-heal-btn');
+        document.getElementById('potion-count').innerText = `x${pPotions}`;
+        if(pPotions <= 0 || healCd > 0) healPanel.classList.add('disabled'); else healPanel.classList.remove('disabled');
+
+        const refreshPanel = document.getElementById('mini-refresh-btn');
+        if(refreshCd > 0) refreshPanel.classList.add('disabled'); else refreshPanel.classList.remove('disabled');
+        
+        updateAnalysisUI();
+    }
+
+    function resetEnemyAction() {
+        enemyAction.progress = 0;
+        enemyAction.duration = 5.5 * diffSettings[currentDiff].spd;
+
+        let e = eTeam[eIdx]; let p = pTeam[pIdx];
+        let validSkills = e.skills.filter(s => s.currentCd <= 0 && s.currentPp > 0);
+        
+        let actionType = 'skill';
+        let chosenSkill = null;
+        let switchIdx = -1;
+
+        let hpRatio = e.hp / e.maxHp;
+
+        if (hpRatio < 0.4 && ePotions > 0 && eHealCd <= 0 && Math.random() < 0.6) {
+            actionType = 'heal';
+        }
+        else if (hpRatio < 0.7 && eSwitchCd <= 0 && getMult(e.type, p.type) < 1) {
+            let aliveBenches = eTeam.map((pk, i) => ({pk, i})).filter(obj => !obj.pk.isFainted && obj.i !== eIdx);
+            if (aliveBenches.length > 0 && Math.random() < 0.5) {
+                actionType = 'switch';
+                switchIdx = aliveBenches[Math.floor(Math.random() * aliveBenches.length)].i;
+            } else if (validSkills.length === 0 && eRefreshCd <= 0) {
+                actionType = 'refresh';
+            } else if (validSkills.length > 0) {
+                chosenSkill = validSkills[Math.floor(Math.random() * validSkills.length)];
+            } else { actionType = 'wait'; }
+        }
+        else if (validSkills.length === 0) {
+            if (eRefreshCd <= 0) actionType = 'refresh';
+            else actionType = 'wait';
+        }
+        else {
+            chosenSkill = validSkills[Math.floor(Math.random() * validSkills.length)];
+        }
+
+        enemyAction.type = actionType;
+        enemyAction.skill = chosenSkill;
+        enemyAction.switchIdx = switchIdx;
+
+        let intentText = ''; let intentColor = '#888';
+        if (actionType === 'heal') { intentText = "使用伤药"; intentColor = "#48d0b0"; }
+        else if (actionType === 'refresh') { intentText = "洗牌重置"; intentColor = "#3890f8"; }
+        else if (actionType === 'switch') { intentText = `替换 ${eTeam[switchIdx].name}`; intentColor = "#f8d030"; }
+        else if (actionType === 'skill') { intentText = chosenSkill.name; intentColor = pkmData[chosenSkill.type]?.color || '#888'; }
+        else { intentText = "卡壳发呆..."; }
+
+        document.getElementById('enemy-intent').innerHTML = `准备中：<span style="color:${intentColor}; font-weight:bold;">${intentText}</span>`;
+    }
+
+    function gameLoop(time) {
+        if(gameState !== 'playing') return;
+        let dt = (time - lastTime) / 1000; lastTime = time;
+
+        weatherTimer -= dt;
+        if(weatherTimer <= 0) { weatherTimer = 20.0; changeWeather(); updateAnalysisUI(); }
+
+        const p = pTeam[pIdx]; const e = eTeam[eIdx];
+        
+        if(playerStatus.atkUp > 0) playerStatus.atkUp -= dt;
+        if(playerStatus.defUp > 0) playerStatus.defUp -= dt;
+        if(playerStatus.accUp > 0) playerStatus.accUp -= dt;
+        if(playerStatus.evaUp > 0) playerStatus.evaUp -= dt;
+
+        const parOverlay = document.getElementById('paralyze-overlay');
+        if(playerStatus.par > 0) {
+            playerStatus.par -= dt; parOverlay.classList.remove('hidden');
+            document.getElementById('par-timer').innerText = playerStatus.par.toFixed(1);
+            if (typingState.active) { cancelTyping(); }
+        } else { parOverlay.classList.add('hidden'); }
+
+        p.skills.forEach((s, i) => {
+            if(s.currentCd > 0) {
+                s.currentCd -= dt;
+                const cdEl = document.getElementById(`cd-${i}`), btn = document.getElementById(`btn-skill-${i}`);
+                if(cdEl && btn) {
+                    if(s.currentCd > 0) { cdEl.style.display = 'flex'; cdEl.innerText = s.currentCd.toFixed(1) + 's'; btn.classList.add('on-cd'); } 
+                    else { cdEl.style.display = 'none'; btn.classList.remove('on-cd'); }
+                }
+            }
+        });
+        if(switchCd > 0) {
+            switchCd -= dt;
+            pTeam.forEach((pk, i) => {
+                const avCdEl = document.getElementById(`av-cd-${i}`);
+                if(avCdEl) {
+                    if(switchCd > 0) { avCdEl.style.display = 'flex'; avCdEl.innerText = switchCd.toFixed(1) + 's'; } 
+                    else { avCdEl.style.display = 'none'; }
+                }
+            });
+            if(switchCd <= 0) { switchCd = 0; applyActivePokemon(); document.getElementById('text-content').innerHTML += `<br><span style="color:#48d0b0;font-size:12px;">换人冷却已完毕！</span>`; }
+        }
+        if(healCd > 0) {
+            healCd -= dt;
+            const healCdEl = document.getElementById('heal-cd-overlay');
+            if(healCd > 0) { healCdEl.style.display = 'flex'; healCdEl.innerText = healCd.toFixed(1) + 's'; document.getElementById('mini-heal-btn').classList.add('disabled'); } 
+            else { healCdEl.style.display = 'none'; if(pPotions > 0) document.getElementById('mini-heal-btn').classList.remove('disabled'); }
+        }
+        if(refreshCd > 0) {
+            refreshCd -= dt;
+            const refreshCdEl = document.getElementById('refresh-cd-overlay');
+            if(refreshCd > 0) { refreshCdEl.style.display = 'flex'; refreshCdEl.innerText = refreshCd.toFixed(1) + 's'; document.getElementById('mini-refresh-btn').classList.add('disabled'); } 
+            else { refreshCdEl.style.display = 'none'; document.getElementById('mini-refresh-btn').classList.remove('disabled'); }
+        }
+
+        if(eHealCd > 0) eHealCd -= dt;
+        if(eSwitchCd > 0) eSwitchCd -= dt;
+        if(eRefreshCd > 0) eRefreshCd -= dt;
+        e.skills.forEach(s => { if(s.currentCd > 0) s.currentCd -= dt; });
+
+        let st = enemyAction.status;
+        if(st.def > 0) st.def -= dt;
+        if(st.par > 0) st.par -= dt;
+        if(st.accDown > 0) st.accDown -= dt;
+
+        if(st.brn > 0) {
+            st.brn -= dt; DoTTimer += dt;
+            if(DoTTimer >= 1.0) {
+                DoTTimer -= 1.0; e.hp -= 10; spawnText('-10', false, '#f85838');
+                document.getElementById('enemy-sprite').classList.add('hurt');
+                setTimeout(() => document.getElementById('enemy-sprite').classList.remove('hurt'), 100);
+            }
+        }
+
+        if(st.par <= 0) {
+            enemyAction.progress += (dt / enemyAction.duration);
+            if(enemyAction.progress >= 1.0) { executeEnemyAction(); }
+        }
+
+        updateUI(); checkFaint(); animFrame = requestAnimationFrame(gameLoop);
+    }
+
+    function cancelTyping() {
+        typingState.active = false;
+        document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('mini-heal-btn').classList.remove('active');
+        document.getElementById('mini-refresh-btn').classList.remove('active');
+        document.querySelectorAll('.av-btn').forEach(b => b.style.boxShadow = 'none');
+        const ct = document.getElementById('center-typing');
+        ct.classList.add('hidden'); ct.classList.remove('error'); 
+    }
+
+    function startAction(type, index = null) {
+        initAudio();
+        if(gameState !== 'playing') return;
+        if (playerStatus.par > 0) return; 
+
+        const p = pTeam[pIdx];
+        if (type === 'skill' && (p.skills[index].currentCd > 0 || p.skills[index].currentPp <= 0)) return;
+        if (type === 'heal' && (pPotions <= 0 || healCd > 0)) return;
+        if (type === 'refresh' && refreshCd > 0) return;
+        if (type === 'switch') { if(pTeam[index].isFainted || index === pIdx) return; if(switchCd > 0) return; }
+
+        typingState.active = true; typingState.actionType = type; typingState.index = index; typingState.typedLen = 0; typingState.mistakes = 0;
+        document.querySelectorAll('.move-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('mini-heal-btn').classList.remove('active');
+        document.getElementById('mini-refresh-btn').classList.remove('active');
+        document.querySelectorAll('.av-btn').forEach(b => b.style.boxShadow = 'none');
+        
+        if (type === 'skill') {
+            document.getElementById(`btn-skill-${index}`).classList.add('active');
+            let words = p.skills[index].words;
+            typingState.targetStr = words[Math.floor(Math.random() * words.length)];
+        } else if (type === 'heal') {
+            document.getElementById('mini-heal-btn').classList.add('active');
+            let words = getWords(30); typingState.targetStr = words[Math.floor(Math.random() * words.length)]; 
+        } else if (type === 'refresh') {
+            document.getElementById('mini-refresh-btn').classList.add('active');
+            let words = getWords(20); typingState.targetStr = words[Math.floor(Math.random() * words.length)]; 
+        } else if (type === 'switch') {
+            document.querySelectorAll('.av-btn')[index].style.boxShadow = '0 0 10px #3890f8';
+            let words = getWords(10); typingState.targetStr = words[Math.floor(Math.random() * words.length)]; 
+        }
+        
+        document.getElementById('center-typing').classList.remove('error'); renderTyping();
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if(gameState !== 'playing') return;
+        if(playerStatus.par > 0) return; 
+
+        initAudio(); const key = e.key.toLowerCase();
+
+        if(key === 'escape' && typingState.active) {
+            cancelTyping(); document.getElementById('text-content').innerHTML = `动作已取消。<br><span style="font-size:14px;color:#888">按 Q/W/E/R 放技能，按 F 刷新，按对应数字换人</span>`; return;
+        }
+        
+        if(!typingState.active) {
+            if(key === 'q') { startAction('skill', 0); return; } if(key === 'w') { startAction('skill', 1); return; }
+            if(key === 'e') { startAction('skill', 2); return; } if(key === 'r') { startAction('skill', 3); return; }
+            if(key >= '1' && key <= String(pTeam.length)) { startAction('switch', parseInt(key)-1); return; } 
+            if(key === 'h') { startAction('heal'); return; }
+            if(key === 'f') { startAction('refresh'); return; }
+        }
+
+        if(!typingState.active) return;
+        if(e.ctrlKey || e.altKey || e.metaKey || e.key.length > 1) return;
+        if(e.code === 'Space') e.preventDefault();
+
+        const targetChar = typingState.targetStr[typingState.typedLen].toLowerCase();
+        
+        if(key === targetChar) {
+            typingState.typedLen++; playSfx('type');
+            if(typingState.typedLen === typingState.targetStr.length) { executePlayerAction(); } else renderTyping();
+        } else {
+            typingState.mistakes++; playSfx('error');
+            
+            currentCombo = 0; updateCombo();
+
+            if (typingState.actionType === 'switch') {
+                switchCd = 10.0; cancelTyping();
+                document.getElementById('text-content').innerHTML = `<span style="color:#f85838;font-size:18px;">指令混乱！换人失败，功能进入 10 秒冷却！</span>`;
+                applyActivePokemon(); 
+                document.getElementById('console').style.animation = 'shake 0.3s';
+                setTimeout(() => document.getElementById('console').style.animation = '', 300);
+                return; 
+            }
+            if (typingState.actionType === 'refresh') {
+                refreshCd = 10.0; cancelTyping();
+                document.getElementById('text-content').innerHTML = `<span style="color:#f85838;font-size:18px;">刷新失败，技能栏卡壳！冷却 10 秒！</span>`;
+                applyActivePokemon(); 
+                document.getElementById('console').style.animation = 'shake 0.3s';
+                setTimeout(() => document.getElementById('console').style.animation = '', 300);
+                return; 
+            }
+
+            document.getElementById('center-typing').classList.add('error');
+            document.getElementById('console').style.animation = 'shake 0.2s';
+            setTimeout(() => { document.getElementById('console').style.animation = ''; document.getElementById('center-typing').classList.remove('error'); }, 200);
+            renderTyping();
+        }
+    });
+
+    function renderTyping() {
+        const ct = document.getElementById('center-typing');
+        if(!typingState.active) { ct.classList.add('hidden'); return; }
+        ct.classList.remove('hidden');
+
+        const typed = typingState.targetStr.substring(0, typingState.typedLen);
+        const untyped = typingState.targetStr.substring(typingState.typedLen);
+        
+        let prefix = '';
+        if(typingState.actionType === 'skill') prefix = `施放: ${pTeam[pIdx].skills[typingState.index].name}`;
+        else if(typingState.actionType === 'heal') prefix = `使用: 伤药`;
+        else if(typingState.actionType === 'refresh') prefix = `重新洗牌技能组`;
+        else prefix = `换上: ${pTeam[typingState.index].name}`;
+        
+        document.getElementById('ct-title').innerText = prefix;
+        document.getElementById('ct-word').innerHTML = `<span class="typed">${typed}</span><span class="untyped">${untyped}</span>`;
+        
+        const mDiv = document.getElementById('ct-mistakes');
+        if(typingState.mistakes > 0) {
+            let lossPct = Math.min(90, Math.floor(typingState.mistakes * 30)); 
+            mDiv.innerText = `失误: ${typingState.mistakes} 次 (伤害与效果概率 -${lossPct}%)`;
+        } else {
+            mDiv.innerText = '';
+        }
+        
+        document.getElementById('text-content').innerHTML = `正在${prefix}...<br><span style="font-size:14px;color:#888">请正确输入屏幕中央的单词，切勿按错！</span>`;
+    }
+
+    function executePlayerAction() {
+        const p = pTeam[pIdx]; const tb = document.getElementById('text-content');
+        const actionType = typingState.actionType; const idx = typingState.index; const mistakes = typingState.mistakes;
+        cancelTyping();
+
+        let penalty = Math.max(0.1, 1 - (mistakes * 0.3));
+
+        if(actionType === 'skill') {
+            const skill = p.skills[idx]; 
+            skill.currentCd = skill.cdMax;
+            skill.currentPp -= 1; 
+
+            if (mistakes === 0) { currentCombo++; updateCombo(); }
+            
+            let comboAccBonus = currentCombo * 0.005;
+            let finalAcc = skill.acc + comboAccBonus;
+            if (playerStatus.accUp > 0) finalAcc += 0.3; 
+            
+            if (Math.random() > finalAcc) {
+                tb.innerHTML = `${p.name} 施放了 ${skill.name}！<br><span style="color:#888; font-size:18px;">但是没有命中目标！</span>`;
+                spawnText("Miss!", false, '#aaa');
+                applyActivePokemon(); return; 
+            }
+
+            const pSpr = document.getElementById('player-sprite'); pSpr.classList.add('attack-player');
+            setTimeout(() => pSpr.classList.remove('attack-player'), 150);
+
+            setTimeout(() => {
+                let e = eTeam[eIdx]; let dmg = skill.dmg;
+                
+                if(mistakes > 0) {
+                    let lossPct = Math.floor((1 - penalty) * 100);
+                    tb.innerHTML = `${p.name} 施放了 ${skill.name}！<br><span style="color:#f85838">因失误过多，威力与概率降低了 ${lossPct}%！</span>`;
+                } else {
+                    tb.innerHTML = `${p.name} 完美施放了 ${skill.name}！`;
+                }
+                
+                let realProb = skill.prob * penalty;
+
+                if(skill.effect && Math.random() < realProb) {
+                    if(skill.effect === 'brn') { enemyAction.status.brn = 8.0; spawnText("烧伤！", false, '#f85838'); }
+                    if(skill.effect === 'def') { enemyAction.status.def = 6.0; spawnText("降防！", false, '#3890f8'); }
+                    if(skill.effect === 'par') { enemyAction.status.par = 1.5; spawnText("麻痹！", false, '#f8d030'); }
+                    if(skill.effect === 'accDown') { enemyAction.status.accDown = 20.0; spawnText("致盲敌军！", false, '#555'); }
+                    if(skill.effect === 'atkUp') { playerStatus.atkUp = 20.0; spawnText("攻击强化！", true, '#f85838'); }
+                    if(skill.effect === 'defUp') { playerStatus.defUp = 20.0; spawnText("防御强化！", true, '#3890f8'); }
+                    if(skill.effect === 'evaUp') { playerStatus.evaUp = 20.0; spawnText("闪避提升！", true, '#8a2be2'); }
+                    if(skill.effect === 'accUp') { playerStatus.accUp = 20.0; spawnText("必中状态！", true, '#48d0b0'); }
+                    if(skill.effect === 'healSelf') { 
+                        let healAmt = 100; p.hp = Math.min(p.maxHp, p.hp + healAmt); 
+                        spawnText(`+${healAmt}`, true, '#48d0b0'); playSfx('heal'); 
+                    }
+                    updateAnalysisUI();
+                }
+
+                if(dmg > 0) {
+                    dmg = Math.max(1, Math.floor(dmg * penalty));
+                    let comboDmgMult = 1 + (currentCombo * 0.01);
+                    dmg = Math.floor(dmg * comboDmgMult);
+
+                    if(playerStatus.atkUp > 0) dmg = Math.floor(dmg * 1.3); 
+                    
+                    let mult = getMult(skill.type, e.type); 
+                    dmg = Math.floor(dmg * mult);
+                    dmg = Math.floor(dmg * getWeatherMult(skill.type));
+
+                    if(enemyAction.status.def > 0) dmg = Math.floor(dmg * 1.3);
+                    
+                    e.hp -= dmg; document.getElementById('enemy-sprite').classList.add('hurt');
+                    spawnText(`-${dmg}`, false, skill.type === 'normal' ? '#555' : pkmData[skill.type].color);
+                    createVFX('enemy-sprite', skill.type);
+                    
+                    if(mult > 1.0) { playSfx('supereffective'); setTimeout(() => spawnText("效果拔群！", false, '#f85838'), 300); }
+                    else if(mult < 1.0) { playSfx('notvery'); setTimeout(() => spawnText("效果不佳...", false, '#90a0c8'), 300); }
+                    else { playSfx('hit'); }
+                    
+                    setTimeout(() => document.getElementById('enemy-sprite').classList.remove('hurt'), 200);
+                }
+                
+                applyActivePokemon(); 
+            }, 150);
+
+        } else if (actionType === 'heal') {
+            healCd = 10.0; pPotions--; 
+            let healAmt = Math.max(10, Math.floor(150 * penalty)); 
+            p.hp = Math.min(p.maxHp, p.hp + healAmt);
+            spawnText(`+${healAmt}`, true, '#48d0b0'); playSfx('heal'); createVFX('player-sprite', 'grass');
+            applyActivePokemon(); 
+            tb.innerHTML = `${p.name} 使用了 伤药，恢复了 ${healAmt} HP！`;
+
+        } else if (actionType === 'refresh') {
+            let oldCds = p.skills.map(s => s.currentCd);
+            let pool = JSON.parse(JSON.stringify(fullSkillPool[p.type]));
+            pool = pool.sort(() => Math.random() - 0.5);
+            for(let i=0; i<4; i++) {
+                pool[i].currentCd = oldCds[i]; 
+                pool[i].currentPp = pool[i].ppMax; 
+                p.skills[i] = pool[i];
+            }
+            playSfx('switch');
+            spawnText("洗牌成功！", true, '#48d0b0');
+            tb.innerHTML = `${p.name} 的技能组已重新洗牌！PP已补满！`;
+            applyActivePokemon(); 
+
+        } else if (actionType === 'switch') {
+            playSfx('switch'); pIdx = idx; applyActivePokemon();
+        }
+    }
+
+    function executeEnemyAction() {
+        const e = eTeam[eIdx]; const p = pTeam[pIdx];
+
+        if (Math.random() < diffSettings[currentDiff].aiMiss) {
+            spawnText("AI 失误!", true, '#aaa');
+            if (enemyAction.type === 'skill') { enemyAction.skill.currentCd = enemyAction.skill.cdMax; enemyAction.skill.currentPp -= 1; }
+            else if (enemyAction.type === 'heal') eHealCd = 10.0;
+            else if (enemyAction.type === 'refresh') eRefreshCd = 10.0;
+            else if (enemyAction.type === 'switch') eSwitchCd = 10.0;
+            resetEnemyAction(); return;
+        }
+
+        const eSpr = document.getElementById('enemy-sprite');
+        eSpr.classList.add('attack-enemy');
+        setTimeout(() => eSpr.classList.remove('attack-enemy'), 150);
+
+        setTimeout(() => {
+            if (enemyAction.type === 'heal') {
+                ePotions--; eHealCd = 10.0; let healAmt = 150;
+                e.hp = Math.min(e.maxHp, e.hp + healAmt);
+                spawnText(`+${healAmt}`, false, '#48d0b0'); playSfx('heal'); createVFX('enemy-sprite', 'grass');
+                updateUI(); resetEnemyAction(); return;
+            } 
+            else if (enemyAction.type === 'refresh') {
+                eRefreshCd = 10.0;
+                let oldCds = e.skills.map(s => s.currentCd);
+                let pool = JSON.parse(JSON.stringify(fullSkillPool[e.type])).sort(() => Math.random() - 0.5);
+                for(let i=0; i<4; i++) { pool[i].currentCd = oldCds[i]; pool[i].currentPp = pool[i].ppMax; e.skills[i] = pool[i]; }
+                playSfx('switch'); spawnText("洗牌！", false, '#3890f8');
+                resetEnemyAction(); return;
+            }
+            else if (enemyAction.type === 'switch') {
+                eSwitchCd = 10.0; eIdx = enemyAction.switchIdx;
+                playSfx('switch'); spawnText("替换上场！", false, '#f8d030');
+                applyActivePokemon(); resetEnemyAction(); return;
+            }
+            else if (enemyAction.type === 'wait') {
+                resetEnemyAction(); return;
+            }
+
+            let skill = enemyAction.skill;
+            skill.currentCd = skill.cdMax;
+            skill.currentPp -= 1;
+
+            let enemyFinalAcc = skill.acc || 0.95; 
+            if (enemyAction.status.accDown > 0) enemyFinalAcc -= 0.3; 
+            if (playerStatus.evaUp > 0) enemyFinalAcc -= 0.3;         
+
+            if (Math.random() > enemyFinalAcc) {
+                spawnText("闪避！", true, '#aaa');
+                resetEnemyAction(); return; 
+            }
+
+            if(skill.effect === 'par' && Math.random() < skill.prob) { playerStatus.par = 1.5; spawnText("被麻痹！", true, '#f8d030'); }
+            if(skill.effect === 'accDown' && Math.random() < skill.prob) { playerStatus.accDown = 20.0; spawnText("被致盲！", true, '#555'); }
+            if(skill.effect === 'healSelf' && Math.random() < skill.prob) { 
+                let healAmt = 100; e.hp = Math.min(e.maxHp, e.hp + healAmt); 
+                spawnText(`+${healAmt}`, false, '#48d0b0'); playSfx('heal'); 
+            }
+
+            if(skill.dmg > 0) {
+                let mult = getMult(skill.type, p.type);
+                let dmg = Math.floor(skill.dmg * mult);
+                dmg = Math.floor(dmg * getWeatherMult(skill.type));
+
+                if(playerStatus.defUp > 0) dmg = Math.floor(dmg * 0.7); 
+                p.hp -= dmg; const pSpr = document.getElementById('player-sprite'); pSpr.classList.add('hurt');
+                spawnText(`-${dmg}`, true, pkmData[skill.type]?.color || '#444'); createVFX('player-sprite', skill.type);
+                
+                if(mult > 1.0) { playSfx('supereffective'); setTimeout(() => spawnText("被克制了！", true, '#f85838'), 300); }
+                else if(mult < 1.0) { playSfx('notvery'); setTimeout(() => spawnText("抵抗伤害！", true, '#48d0b0'), 300); }
+                else { playSfx('hit'); }
+                
+                document.getElementById('console').style.animation = 'shake 0.3s';
+                setTimeout(() => document.getElementById('console').style.animation = '', 300);
+                setTimeout(() => pSpr.classList.remove('hurt'), 200);
+            }
+            updateAnalysisUI();
+            resetEnemyAction(); 
+        }, 150);
+    }
+
+    function spawnText(text, isPlayerTarget, color) {
+        const el = document.createElement('div'); el.className = 'floating-text'; el.innerText = text; el.style.color = color;
+        if(isPlayerTarget) { el.style.left = '90px'; el.style.bottom = '140px'; } else { el.style.right = '130px'; el.style.top = '100px'; }
+        document.getElementById('battle-scene').appendChild(el); setTimeout(() => el.remove(), 1000);
+    }
+
+    function updateUI() {
+        const p = pTeam[pIdx]; const e = eTeam[eIdx];
+        const pFill = document.getElementById('player-hp-fill'); const pPct = Math.max(0, p.hp / p.maxHp * 100);
+        pFill.style.width = pPct + '%'; pFill.style.background = pPct > 50 ? '#48d0b0' : (pPct > 20 ? '#f8d030' : '#f85838');
+        document.getElementById('player-hp-txt').innerText = `${Math.max(0, Math.ceil(p.hp))} / ${p.maxHp}`;
+
+        pTeam.forEach((pk, i) => {
+            const avFill = document.querySelectorAll('.av-hp-fill')[i];
+            if(avFill) { let avPct = Math.max(0, pk.hp / pk.maxHp * 100); avFill.style.width = avPct + '%'; avFill.style.background = avPct > 50 ? '#48d0b0' : (avPct > 20 ? '#f8d030' : '#f85838'); }
+        });
+
+        const eFill = document.getElementById('enemy-hp-fill'); const ePct = Math.max(0, e.hp / e.maxHp * 100);
+        eFill.style.width = ePct + '%'; eFill.style.background = ePct > 50 ? '#48d0b0' : (ePct > 20 ? '#f8d030' : '#f85838');
+
+        const timerFill = document.getElementById('enemy-atk-timer'); timerFill.style.width = Math.min(100, enemyAction.progress * 100) + '%';
+        timerFill.style.background = enemyAction.status.par > 0 ? '#f8d030' : (enemyAction.progress > 0.8 ? '#f85838' : '#3890f8');
+
+        document.getElementById('badge-brn').style.display = enemyAction.status.brn > 0 ? 'block' : 'none';
+        document.getElementById('badge-def').style.display = enemyAction.status.def > 0 ? 'block' : 'none';
+        document.getElementById('badge-par').style.display = enemyAction.status.par > 0 ? 'block' : 'none';
+        document.getElementById('badge-accDown').style.display = enemyAction.status.accDown > 0 ? 'block' : 'none';
+
+        document.getElementById('p-badge-atk').style.display = playerStatus.atkUp > 0 ? 'block' : 'none';
+        document.getElementById('p-badge-def').style.display = playerStatus.defUp > 0 ? 'block' : 'none';
+        document.getElementById('p-badge-par').style.display = playerStatus.par > 0 ? 'block' : 'none';
+        document.getElementById('p-badge-acc').style.display = playerStatus.accUp > 0 ? 'block' : 'none';
+        document.getElementById('p-badge-eva').style.display = playerStatus.evaUp > 0 ? 'block' : 'none';
+        
+        updateAnalysisUI();
+    }
+
+    function checkFaint() {
+        const p = pTeam[pIdx]; const e = eTeam[eIdx];
+        if (e.hp <= 0 && !e.isFainted) {
+            e.isFainted = true; playSfx('error'); document.getElementById('enemy-sprite').classList.add('faint');
+            if (eTeam.every(pk => pk.isFainted)) { endGame(true); } 
+            else {
+                setTimeout(() => {
+                    do { eIdx = (eIdx + 1) % eTeam.length; } while (eTeam[eIdx].isFainted);
+                    document.getElementById('enemy-sprite').classList.remove('faint');
+                    resetEnemyAction(); enemyAction.status = { brn:0, def:0, par:0, accDown:0 };
+                    applyActivePokemon(); playSfx('switch');
+                    document.getElementById('text-content').innerHTML = `敌人换上了 ${eTeam[eIdx].name}！<br><span style="font-size:14px;color:#888">按 1~6 数字键 进行联防换人！</span>`;
+                }, 1000);
+            }
+        }
+        if (p.hp <= 0 && !p.isFainted) {
+            p.isFainted = true; playSfx('error'); document.getElementById('player-sprite').classList.add('faint');
+            typingState.active = false; document.getElementById('center-typing').classList.add('hidden');
+            
+            currentCombo = 0; updateCombo();
+
+            if (pTeam.every(pk => pk.isFainted)) { endGame(false); } 
+            else {
+                setTimeout(() => {
+                    do { pIdx = (pIdx + 1) % pTeam.length; } while (pTeam[pIdx].isFainted);
+                    document.getElementById('player-sprite').classList.remove('faint');
+                    applyActivePokemon(); playSfx('switch');
+                    document.getElementById('text-content').innerHTML = `${p.name} 倒下了...<br>自动替换为 ${pTeam[pIdx].name}！`;
+                }, 1000);
+            }
+        }
+    }
+
+    function endGame(isWin) {
+        gameState = 'gameover';
+        setTimeout(() => {
+            document.getElementById('end-screen').classList.remove('hidden');
+            const title = document.getElementById('end-title');
+            title.innerText = isWin ? '战斗胜利！' : '全军覆没...';
+            title.style.color = isWin ? '#48d0b0' : '#f85838';
+            document.getElementById('end-desc').innerText = isWin ? '完美的打字手速与属性克制！' : '你的队伍全都倒下了...';
+        }, 1500);
+    }
+</script>
+</body>
+</html>

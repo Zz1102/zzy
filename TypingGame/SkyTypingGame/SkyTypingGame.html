@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>STAR CODE - 极简星空打字</title>
+    <style>
+        /* === 全局与 Phigros 风格 UI === */
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: #050508;
+            color: #fff;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%; height: 100%;
+        }
+
+        .screen-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 12, 0.15);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            transition: opacity 0.5s ease;
+        }
+
+        .title-box {
+            text-align: center;
+            margin-bottom: 40px;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+        }
+        .title-box h1 {
+            font-size: 64px;
+            font-weight: 900;
+            margin: 0;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        .title-box p {
+            font-size: 14px;
+            color: #aaa;
+            letter-spacing: 5px;
+            margin-top: 10px;
+            line-height: 1.8;
+            text-shadow: 0 0 10px #000;
+        }
+        .esc-hint {
+            color: #0ff;
+            font-size: 12px;
+            text-transform: none;
+            letter-spacing: 2px;
+        }
+
+        /* 难度按钮 */
+        .diff-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .diff-btn {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid #555;
+            color: #aaa;
+            padding: 10px 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+        }
+        .diff-btn:hover {
+            border-color: #0ff;
+            color: #0ff;
+        }
+        .diff-btn.active {
+            background: #fff;
+            color: #000;
+            border-color: #fff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+            font-weight: bold;
+        }
+
+        /* 模式按钮 (缩小并放置在难度下方) */
+        .mode-container {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .mode-btn {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid #555;
+            color: #aaa;
+            padding: 6px 18px; 
+            font-size: 13px;   
+            cursor: pointer;
+            transition: all 0.3s;
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+            letter-spacing: 1px;
+        }
+        .mode-btn:hover {
+            border-color: #d942f5;
+            color: #d942f5;
+        }
+        .mode-btn.active {
+            background: #fff;
+            color: #000;
+            border-color: #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+            font-weight: bold;
+        }
+        .mode-btn[data-mode="chaos"].active {
+            background: #d942f5;
+            color: #fff;
+            border-color: #d942f5;
+            box-shadow: 0 0 15px rgba(217, 66, 245, 0.6);
+        }
+
+        #custom-settings {
+            display: none;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+        .custom-input {
+            background: rgba(0,0,0,0.5);
+            border: none;
+            border-bottom: 2px solid #555;
+            color: #0ff;
+            width: 50px;
+            font-size: 18px;
+            text-align: center;
+            outline: none;
+        }
+
+        .actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        .file-label {
+            background: rgba(0,0,0,0.5);
+            color: #bbb;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px dashed #555;
+            padding: 10px 20px;
+            transition: all 0.3s;
+        }
+        .file-label:hover { border-color: #0ff; color: #0ff; }
+        .file-label input[type="file"] { display: none; }
+        
+        .start-btn {
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid #0ff;
+            color: #0ff;
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 5px;
+            padding: 15px 60px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2) inset;
+        }
+        .start-btn:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 30px #0ff;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- 开始菜单 -->
+    <div id="start-screen" class="screen-overlay">
+        <div class="title-box">
+            <h1>STAR CODE</h1>
+            <p>
+                TYPING SURVIVAL SIMULATOR<br>
+                <span class="esc-hint">在任意时刻按 [ESC] 键可返回上一层</span>
+            </p>
+        </div>
+
+        <!-- 难度选择 -->
+        <div class="diff-container" id="diff-btns">
+            <button class="diff-btn" data-diff="novice">新手</button>
+            <button class="diff-btn active" data-diff="basic">基础</button>
+            <button class="diff-btn" data-diff="advanced">进阶</button>
+            <button class="diff-btn" data-diff="expert">高手</button>
+            <button class="diff-btn" data-diff="god" style="color:#f55;">神犇</button>
+            <button class="diff-btn" data-diff="custom">自定义</button>
+        </div>
+
+        <!-- 模式选择 -->
+        <div class="mode-container" id="mode-btns">
+            <button class="mode-btn active" data-mode="normal">正常模式</button>
+            <button class="mode-btn" data-mode="chaos">混乱模式</button>
+        </div>
+
+        <div id="custom-settings">
+            <label>速度: <input type="number" id="customSpeed" class="custom-input" value="3.5" step="0.1" min="0.1" max="50"></label>
+            <label>回退: <input type="number" id="customPenalty" class="custom-input" value="10" min="0"></label>
+            <label>等待(秒): <input type="number" id="customDelay" class="custom-input" value="1.5" step="0.1" min="0" max="10"></label>
+        </div>
+
+        <div class="actions">
+            <label class="file-label" id="file-display">
+                <input type="file" id="fileInput" accept=".cpp,.c,.h,.txt" />
+                > 点击此处导入本地代码 (默认运行 Hello World)
+            </label>
+            <button class="start-btn" onclick="startGame()">START</button>
+        </div>
+    </div>
+
+    <!-- 游戏结束界面 -->
+    <div id="gameover" class="screen-overlay hidden" style="background: rgba(20, 0, 0, 0.7);">
+        <div class="title-box">
+            <h1 style="color: #ff3333; text-shadow: 0 0 20px red;">SYSTEM FAILURE</h1>
+            <p>被巨型星体吞噬</p>
+        </div>
+        <button class="start-btn" onclick="restartGame()">RESTART</button>
+    </div>
+
+    <!-- 胜利界面 -->
+    <div id="victory" class="screen-overlay hidden" style="background: rgba(0, 20, 0, 0.7);">
+        <div class="title-box">
+            <h1 style="color: #33ff33; text-shadow: 0 0 20px #0f0;">MISSION CLEAR</h1>
+            <p>成功穿越代码星系</p>
+        </div>
+        <button class="start-btn" onclick="returnToMenu()">RETURN</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let isPlaying = false;
+        let inGameSession = false;
+        let lastTime = 0;
+        let hasStartedTyping = false; 
+
+        let introPhase = 'none'; 
+        let introProgress = 0;   
+
+        let lines = [];
+        let linePositions = [];
+        
+        const defaultCode = `#include<iostream>
+using namespace std;
+int main(){
+cout<<"Welcome to STAR CODE!"<<endl;
+return 0;
+}`;
+        let fileContent = defaultCode;
+
+        let currentGameMode = 'normal';
+
+        const difficulties = {
+            'novice':   { speed: 1.5, penalty: 1, delay: 2.0 }, 
+            'basic':    { speed: 2.5, penalty: 5, delay: 1.5 }, 
+            'advanced': { speed: 4.0, penalty: 10, delay: 0.8 },
+            'expert':   { speed: 6.0, penalty: 20, delay: 0.4 },
+            'god':      { speed: 8.5, penalty: 9999, delay: 0.1 }
+        };
+        let currentDiff = 'basic';
+        let largeSpeed = difficulties['basic'].speed;
+        let penaltyCount = difficulties['basic'].penalty;
+        let largeDelay = difficulties['basic'].delay;
+
+        const fontSize = 28;
+        let charWidth = 16.8; 
+        let camX = 0, camY = 0;
+        let targetCamX = 0, targetCamY = 0;
+        let currentZoom = 0.5; 
+        let targetZoom = 0.5;
+
+        const smallBall = {
+            lineIdx: 0, charIdx: 0,
+            isJumping: false, isJumpingBack: false, jumpProgress: 0, 
+            startX: 0, startY: 0, endX: 0, endY: 0,
+            currentX: 0, currentY: 0, targetX: 0, targetY: 0,
+            trail: []
+        };
+
+        const largeBall = {
+            lineIdx: 0, charIdx: 0,
+            state: 'waiting', fallProgress: 0, jumpProgress: 0, waitTimer: 0, 
+            startX: 0, startY: 0, endX: 0, endY: 0,
+            currentX: 0, currentY: 0, scale: 1 
+        };
+        
+        let stars = [];
+        let planets = [];
+        let nebulas = []; 
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentGameMode = e.target.getAttribute('data-mode');
+            });
+        });
+
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentDiff = e.target.getAttribute('data-diff');
+                document.getElementById('custom-settings').style.display = (currentDiff === 'custom') ? 'flex' : 'none';
+            });
+        });
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                fileContent = ev.target.result;
+                document.getElementById('file-display').innerText = `> 已加载: ${file.name}`;
+            };
+            reader.readAsText(file);
+        });
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if(stars.length === 0) initBackgrounds();
+        }
+        window.addEventListener('resize', resize);
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (document.getElementById('start-screen').classList.contains('hidden')) {
+                    returnToMenu();
+                }
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                if (!document.getElementById('start-screen').classList.contains('hidden')) {
+                    startGame();
+                    return;
+                }
+                if (!document.getElementById('gameover').classList.contains('hidden')) {
+                    restartGame();
+                    return;
+                }
+                if (!document.getElementById('victory').classList.contains('hidden')) {
+                    returnToMenu();
+                    return;
+                }
+            }
+
+            if (e.isComposing || e.keyCode === 229) return; 
+            if (!isPlaying || smallBall.isJumping || smallBall.isJumpingBack) return; 
+            
+            if (introPhase !== 'ready') return;
+            
+            if (e.key.length !== 1) return; 
+
+            hasStartedTyping = true;
+
+            const currentLine = lines[smallBall.lineIdx];
+            const targetChar = currentLine[smallBall.charIdx];
+
+            if (e.key === targetChar) {
+                const nextIdx = smallBall.charIdx + 1;
+                if (nextIdx >= currentLine.length) {
+                    if (smallBall.lineIdx + 1 >= lines.length) {
+                        isPlaying = false;
+                        document.getElementById('victory').classList.remove('hidden');
+                    } else {
+                        smallBall.isJumping = true;
+                        smallBall.jumpProgress = 0;
+                        let startP = getCharWorldPos(smallBall.lineIdx, currentLine.length - 1);
+                        let endP = getCharWorldPos(smallBall.lineIdx + 1, 0);
+                        smallBall.startX = startP.x;
+                        smallBall.startY = startP.y;
+                        smallBall.endX = endP.x;
+                        smallBall.endY = endP.y;
+                    }
+                } else {
+                    updateSmallBallTargetPos(nextIdx);
+                }
+            } else {
+                const targetCharIdx = Math.max(0, smallBall.charIdx - penaltyCount);
+                if (targetCharIdx === smallBall.charIdx) return; 
+
+                smallBall.isJumpingBack = true;
+                smallBall.jumpProgress = 0;
+                smallBall.startX = smallBall.currentX;
+                smallBall.startY = smallBall.currentY;
+                
+                let endP = getCharWorldPos(smallBall.lineIdx, targetCharIdx);
+                smallBall.endX = endP.x;
+                smallBall.endY = endP.y;
+                
+                smallBall.charIdx = targetCharIdx;
+                smallBall.targetX = endP.x;
+                smallBall.targetY = endP.y;
+            }
+        });
+
+        function initBackgrounds() {
+            stars = Array.from({length: 400}, () => ({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2,
+                speed: Math.random() * 0.5 + 0.1,
+                alpha: Math.random() * 0.8 + 0.2,
+                dAlpha: (Math.random() * 1.5 + 0.5) * (Math.random() > 0.5 ? 1 : -1)
+            }));
+
+            planets = Array.from({length: 12}, () => ({
+                x: Math.random() * canvas.width * 4,
+                y: Math.random() * canvas.height * 4,
+                size: Math.random() * 150 + 80,
+                speed: Math.random() * 0.04 + 0.01,
+                hue: Math.random() * 360,
+                alpha: Math.random() * 0.1 + 0.05
+            }));
+
+            nebulas = Array.from({length: 8}, () => ({
+                x: Math.random() * canvas.width * 4,
+                y: Math.random() * canvas.height * 4,
+                size: Math.random() * 600 + 400, 
+                speed: Math.random() * 0.015 + 0.005,
+                hue: Math.random() * 360,
+                alpha: Math.random() * 0.04 + 0.01 
+            }));
+        }
+
+        function returnToMenu() {
+            isPlaying = false;
+            inGameSession = false; 
+            introPhase = 'none'; 
+            
+            document.getElementById('gameover').classList.add('hidden');
+            document.getElementById('victory').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+            
+            targetZoom = 0.5;
+        }
+
+        function startGame() {
+            if(currentDiff === 'custom') {
+                let cSpeed = parseFloat(document.getElementById('customSpeed').value);
+                let cPenalty = parseInt(document.getElementById('customPenalty').value);
+                let cDelay = parseFloat(document.getElementById('customDelay').value);
+                
+                let errorMessages = [];
+                if (cSpeed <= 0) errorMessages.push("速度不能为 0 或负数");
+                else if (cSpeed > 50) errorMessages.push("速度最大不能超过 50");
+                if (cPenalty < 0) errorMessages.push("回退参数不能为负数");
+                if (cDelay < 0) errorMessages.push("等待时间不能为负数");
+                else if (cDelay > 10) errorMessages.push("等待时间最大不能超过 10 秒");
+
+                if (errorMessages.length > 0) {
+                    alert("自定义参数错误：\n- " + errorMessages.join("\n- "));
+                    return; 
+                }
+                
+                largeSpeed = cSpeed;
+                penaltyCount = cPenalty;
+                largeDelay = cDelay;
+            } else {
+                largeSpeed = difficulties[currentDiff].speed;
+                penaltyCount = difficulties[currentDiff].penalty;
+                largeDelay = difficulties[currentDiff].delay;
+            }
+            document.getElementById('start-screen').classList.add('hidden');
+            parseAndInitGame(fileContent);
+        }
+
+        // 每次重新开始都会随机生成新排版
+        function generateLineLayouts() {
+            let currentY = 0;
+            linePositions = lines.map((line, i) => {
+                let type = 'normal';
+                if (currentGameMode === 'chaos') {
+                    const types = ['normal', 'rtl', 'vertical', 'upside_down'];
+                    type = types[Math.floor(Math.random() * types.length)];
+                }
+                
+                let pos = {
+                    x: (Math.random() - 0.5) * (canvas.width * 0.8),
+                    y: currentY,
+                    type: type
+                };
+                
+                if (type === 'vertical') {
+                    currentY += line.length * fontSize + 150;
+                } else {
+                    currentY += 350;
+                }
+                return pos;
+            });
+        }
+
+        function parseAndInitGame(text) {
+            text = text.replace(/\/\*[\s\S]*?\*\//g, '');
+            text = text.replace(/\/\/.*$/gm, '');
+            text = text.replace(/\t/g, '    ');
+            let rawLines = text.split('\n');
+            lines = [];
+            for (let line of rawLines) {
+                line = line.trim();
+                if (line.length > 0) lines.push(line);
+            }
+            
+            ctx.font = `bold ${fontSize}px "Courier New"`;
+            charWidth = ctx.measureText("A").width;
+
+            generateLineLayouts();
+
+            resetGameState();
+            isPlaying = true;
+            inGameSession = true; 
+        }
+
+        function restartGame() {
+            document.getElementById('gameover').classList.add('hidden');
+            
+            // 每次重新开始时刷新随机排版
+            generateLineLayouts(); 
+            
+            resetGameState();
+            isPlaying = true;
+        }
+
+        function resetGameState() {
+            hasStartedTyping = false;
+            
+            introPhase = 'zooming';
+            introProgress = 0;
+            currentZoom = 0.4; 
+
+            smallBall.lineIdx = 0;
+            updateSmallBallTargetPos(0);
+            smallBall.currentX = smallBall.targetX;
+            smallBall.currentY = smallBall.targetY;
+            smallBall.isJumping = false;
+            smallBall.isJumpingBack = false;
+            smallBall.trail = [];
+
+            largeBall.lineIdx = 0;
+            largeBall.charIdx = -10; 
+            
+            largeBall.state = 'waiting'; 
+            largeBall.waitTimer = largeDelay;
+            largeBall.fallProgress = 0;
+            largeBall.scale = 1;
+            
+            let largeTargetPos = getCharWorldPos(0, largeBall.charIdx);
+            largeBall.startX = largeTargetPos.x;
+            largeBall.startY = largeTargetPos.y - 600; 
+            largeBall.currentX = largeBall.startX;
+            largeBall.currentY = largeBall.startY;
+            
+            targetCamX = smallBall.currentX;
+            targetCamY = smallBall.currentY;
+            camX = targetCamX;
+            camY = targetCamY;
+        }
+
+        function quadraticBezier(p0, p1, p2, t) {
+            const u = 1 - t;
+            return u * u * p0 + 2 * u * t * p1 + t * t * p2;
+        }
+
+        function getCharLayout(lIdx, cIdx) {
+            if (lIdx >= lines.length) return { x: 0, y: 0, angle: 0, scaleY: 1 };
+            const lPos = linePositions[lIdx];
+            let px = lPos.x;
+            let py = lPos.y;
+            let angle = 0;
+            let scaleY = 1;
+
+            switch (lPos.type) {
+                case 'normal':
+                    px += cIdx * charWidth;
+                    break;
+                case 'rtl':
+                    px -= cIdx * charWidth;
+                    break;
+                case 'vertical':
+                    py += cIdx * fontSize;
+                    break;
+                case 'upside_down':
+                    px += cIdx * charWidth;
+                    scaleY = -1;
+                    break;
+            }
+            return { x: px, y: py, angle: angle, scaleY: scaleY };
+        }
+
+        function getCharWorldPos(lIdx, cIdx) {
+            let layout = getCharLayout(lIdx, cIdx);
+            return {
+                x: layout.x + charWidth / 2,
+                y: layout.y - 25 
+            };
+        }
+
+        function updateSmallBallTargetPos(nextIdx) {
+             const newCharIdx = Math.max(0, nextIdx);
+             smallBall.charIdx = newCharIdx;
+             const p = getCharWorldPos(smallBall.lineIdx, newCharIdx);
+             smallBall.targetX = p.x;
+             smallBall.targetY = p.y;
+        }
+
+        function checkCollision() {
+            // 新增判定：如果大球的行数已经大于小球的行数，说明已经跨行超越，直接判定失败
+            if (largeBall.lineIdx > smallBall.lineIdx) {
+                isPlaying = false;
+                document.getElementById('gameover').classList.remove('hidden');
+                return;
+            }
+
+            // 原有判定逻辑：在同一行时的追击判定
+            if (smallBall.lineIdx === largeBall.lineIdx && 
+                largeBall.state === 'chasing' && 
+                !smallBall.isJumping && 
+                !smallBall.isJumpingBack) { 
+                
+                if (largeBall.charIdx >= smallBall.charIdx - 0.2) {
+                    isPlaying = false;
+                    document.getElementById('gameover').classList.remove('hidden');
+                }
+            }
+        }
+
+        function mainLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            let dt = (timestamp - lastTime) / 1000;
+            if (dt > 0.1) dt = 0.1; 
+            lastTime = timestamp;
+
+            updateBackgroundAndCamera(dt);
+
+            if (isPlaying) {
+                updateGame(dt);
+            }
+
+            drawAll();
+            requestAnimationFrame(mainLoop); 
+        }
+
+        function updateBackgroundAndCamera(dt) {
+            stars.forEach(star => {
+                star.alpha += star.dAlpha * dt;
+                if (star.alpha >= 1) { star.alpha = 1; star.dAlpha *= -1; }
+                if (star.alpha <= 0.1) { star.alpha = 0.1; star.dAlpha *= -1; }
+                
+                star.y += star.speed * 20 * dt;
+                star.x += (star.speed - 0.3) * 10 * dt;
+            });
+            
+            planets.forEach(p => {
+                p.y += p.speed * 15 * dt;
+                p.x += p.speed * 5 * dt;
+            });
+
+            nebulas.forEach(n => {
+                n.y += n.speed * 12 * dt;
+                n.x += n.speed * 6 * dt;
+            });
+
+            if (!inGameSession) {
+                targetCamX += 40 * dt;
+                targetCamY += 20 * dt;
+                currentZoom += (targetZoom - currentZoom) * 8 * dt; 
+            } else if (introPhase === 'ready') {
+                currentZoom += (targetZoom - currentZoom) * 8 * dt; 
+            }
+
+            camX += (targetCamX - camX) * 0.08;
+            camY += (targetCamY - camY) * 0.08;
+        }
+
+        function updateGame(dt) {
+            if (introPhase === 'zooming') {
+                introProgress += dt * 0.4; 
+                if (introProgress >= 1) {
+                    introProgress = 1;
+                    introPhase = 'ready';
+                    currentZoom = 1.0;
+                    targetZoom = 1.0;
+                } else {
+                    let easeInOut = -(Math.cos(Math.PI * introProgress) - 1) / 2;
+                    currentZoom = 0.4 + 0.6 * easeInOut;
+                }
+            } else {
+                if (smallBall.isJumping) {
+                    targetZoom = 1.0 - 0.4 * Math.sin(smallBall.jumpProgress * Math.PI); 
+                } else {
+                    targetZoom = 1.0;
+                }
+            }
+
+            if (smallBall.isJumping) {
+                smallBall.jumpProgress += dt * 1.2; 
+                if (smallBall.jumpProgress >= 1) {
+                    smallBall.jumpProgress = 1;
+                    smallBall.isJumping = false;
+                    smallBall.lineIdx++;
+                    updateSmallBallTargetPos(0);
+                    smallBall.currentX = smallBall.targetX;
+                    smallBall.currentY = smallBall.targetY;
+                } else {
+                    let t = smallBall.jumpProgress;
+                    let controlX = (smallBall.startX + smallBall.endX) / 2;
+                    let controlY = Math.min(smallBall.startY, smallBall.endY) - 300; 
+                    smallBall.currentX = quadraticBezier(smallBall.startX, controlX, smallBall.endX, t);
+                    smallBall.currentY = quadraticBezier(smallBall.startY, controlY, smallBall.endY, t);
+                }
+            } else if (smallBall.isJumpingBack) {
+                smallBall.jumpProgress += dt * 2.5;
+                if (smallBall.jumpProgress >= 1) {
+                    smallBall.jumpProgress = 1;
+                    smallBall.isJumpingBack = false;
+                    smallBall.currentX = smallBall.targetX;
+                    smallBall.currentY = smallBall.targetY;
+                } else {
+                    let t = smallBall.jumpProgress;
+                    let controlX = (smallBall.startX + smallBall.endX) / 2;
+                    let controlY = smallBall.startY - 80; 
+                    smallBall.currentX = quadraticBezier(smallBall.startX, controlX, smallBall.endX, t);
+                    smallBall.currentY = quadraticBezier(smallBall.startY, controlY, smallBall.endY, t);
+                }
+            } else {
+                smallBall.currentX += (smallBall.targetX - smallBall.currentX) * (1 - Math.pow(0.01, dt));
+                smallBall.currentY += (smallBall.targetY - smallBall.currentY) * (1 - Math.pow(0.01, dt));
+            }
+            
+            targetCamX = smallBall.currentX;
+            targetCamY = smallBall.currentY;
+
+            smallBall.trail.push({ x: smallBall.currentX, y: smallBall.currentY, life: 1.0 });
+            for (let i = smallBall.trail.length - 1; i >= 0; i--) {
+                smallBall.trail[i].life -= dt * 0.8;
+                if (smallBall.trail[i].life <= 0) smallBall.trail.splice(i, 1);
+            }
+
+            if (!smallBall.isJumping) {
+                if (largeBall.state === 'waiting') {
+                    if (hasStartedTyping) {
+                        largeBall.waitTimer -= dt;
+                        if (largeBall.waitTimer <= 0) {
+                            largeBall.state = 'falling';
+                        }
+                    }
+                } 
+                else if (largeBall.state === 'falling') {
+                    largeBall.fallProgress += dt * 0.7;
+                    if (largeBall.fallProgress >= 1) {
+                        largeBall.fallProgress = 1;
+                        largeBall.state = 'chasing';
+                        largeBall.scale = 2; 
+                        let p = getCharWorldPos(largeBall.lineIdx, largeBall.charIdx);
+                        largeBall.currentX = p.x;
+                        largeBall.currentY = p.y;
+                    } else {
+                        let t = largeBall.fallProgress;
+                        let easeIn = t * t * t; 
+                        let targetP = getCharWorldPos(largeBall.lineIdx, largeBall.charIdx);
+                        largeBall.currentX = largeBall.startX + (targetP.x - largeBall.startX) * easeIn;
+                        largeBall.currentY = largeBall.startY + (targetP.y - largeBall.startY) * easeIn;
+                    }
+                } 
+                else if (largeBall.state === 'chasing') {
+                    if (largeBall.scale > 1) largeBall.scale = Math.max(1, largeBall.scale - dt * 2);
+
+                    const currentLineLength = lines[largeBall.lineIdx].length;
+                    largeBall.charIdx += largeSpeed * dt;
+                    
+                    if (largeBall.charIdx >= currentLineLength) {
+                        if (largeBall.lineIdx + 1 < lines.length) {
+                            largeBall.state = 'jumping';
+                            largeBall.jumpProgress = 0;
+                            let startP = getCharWorldPos(largeBall.lineIdx, currentLineLength - 1);
+                            let endP = getCharWorldPos(largeBall.lineIdx + 1, -2); 
+                            largeBall.startX = startP.x;
+                            largeBall.startY = startP.y;
+                            largeBall.endX = endP.x;
+                            largeBall.endY = endP.y;
+                        }
+                    } else {
+                        let p = getCharWorldPos(largeBall.lineIdx, largeBall.charIdx);
+                        largeBall.currentX = p.x;
+                        largeBall.currentY = p.y;
+                    }
+                }
+                else if (largeBall.state === 'jumping') {
+                    largeBall.jumpProgress += dt * 1.5;
+                    if (largeBall.jumpProgress >= 1) {
+                        largeBall.jumpProgress = 1;
+                        largeBall.state = 'chasing';
+                        largeBall.lineIdx++;
+                        largeBall.charIdx = -2; 
+                        let p = getCharWorldPos(largeBall.lineIdx, largeBall.charIdx);
+                        largeBall.currentX = p.x;
+                        largeBall.currentY = p.y;
+                    } else {
+                        let t = largeBall.jumpProgress;
+                        let controlX = (largeBall.startX + largeBall.endX) / 2;
+                        let controlY = Math.min(largeBall.startY, largeBall.endY) - 400; 
+                        largeBall.currentX = quadraticBezier(largeBall.startX, controlX, largeBall.endX, t);
+                        largeBall.currentY = quadraticBezier(largeBall.startY, controlY, largeBall.endY, t);
+                    }
+                }
+            }
+            checkCollision();
+        }
+
+        function drawAll() {
+            ctx.fillStyle = '#050508';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            stars.forEach(star => {
+                let sx = (star.x - camX * star.speed * 0.1) % canvas.width;
+                let sy = (star.y - camY * star.speed * 0.1) % canvas.height;
+                if (sx < 0) sx += canvas.width;
+                if (sy < 0) sy += canvas.height;
+                ctx.beginPath();
+                ctx.arc(sx, sy, star.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+                ctx.fill();
+            });
+
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(currentZoom, currentZoom);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+            const offsetX = canvas.width / 2 - camX;
+            const offsetY = canvas.height / 2 - camY;
+            const areaW = canvas.width * 4;
+            const areaH = canvas.height * 4;
+
+            ctx.globalCompositeOperation = 'screen'; 
+            nebulas.forEach(n => {
+                let nx = n.x + offsetX * n.speed;
+                let ny = n.y + offsetY * n.speed;
+                nx = ((nx % areaW) + areaW) % areaW - areaW / 2 + canvas.width / 2;
+                ny = ((ny % areaH) + areaH) % areaH - areaH / 2 + canvas.height / 2;
+
+                let grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.size);
+                grad.addColorStop(0, `hsla(${n.hue}, 80%, 40%, ${n.alpha})`);
+                grad.addColorStop(1, `hsla(${n.hue}, 80%, 30%, 0)`);
+                
+                ctx.beginPath();
+                ctx.arc(nx, ny, n.size, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+            });
+            ctx.globalCompositeOperation = 'source-over'; 
+
+            planets.forEach(p => {
+                let px = p.x + offsetX * p.speed;
+                let py = p.y + offsetY * p.speed;
+                px = ((px % areaW) + areaW) % areaW - areaW / 2 + canvas.width / 2;
+                py = ((py % areaH) + areaH) % areaH - areaH / 2 + canvas.height / 2;
+
+                let grad = ctx.createRadialGradient(px - p.size*0.2, py - p.size*0.2, 0, px, py, p.size);
+                grad.addColorStop(0, `hsla(${p.hue}, 80%, 70%, ${p.alpha})`);
+                grad.addColorStop(1, `hsla(${p.hue}, 40%, 20%, 0)`);
+                
+                ctx.beginPath();
+                ctx.arc(px, py, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+            });
+
+            if (inGameSession) {
+                ctx.font = `bold ${fontSize}px "Courier New", monospace`;
+                ctx.textBaseline = 'top';
+
+                for (let i = 0; i < lines.length; i++) {
+                    const lPos = linePositions[i];
+                    const line = lines[i];
+
+                    let lineCenterY = lPos.y;
+                    if (lPos.type === 'vertical') lineCenterY += (line.length * fontSize) / 2;
+                    if (Math.abs(lineCenterY - camY) > canvas.height * (1/currentZoom) * 2.5) continue;
+
+                    for (let c = 0; c < line.length; c++) {
+                        let layout = getCharLayout(i, c);
+                        let cx = layout.x + offsetX;
+                        let cy = layout.y + offsetY;
+                        
+                        ctx.save();
+                        ctx.translate(cx + charWidth / 2, cy + fontSize / 2);
+                        if (layout.angle !== 0) ctx.rotate(layout.angle);
+                        if (layout.scaleY !== 1) ctx.scale(1, layout.scaleY);
+
+                        if (i < smallBall.lineIdx) {
+                            ctx.fillStyle = '#3a4f6e';
+                        } else if (i > smallBall.lineIdx) {
+                            ctx.fillStyle = '#444'; 
+                        } else {
+                            if (c < smallBall.charIdx) {
+                                ctx.fillStyle = '#0ff'; 
+                            } else if (c === smallBall.charIdx) {
+                                ctx.fillStyle = '#ffffff'; 
+                                if (!smallBall.isJumping && !smallBall.isJumpingBack) {
+                                    if (introPhase !== 'ready') {
+                                        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                                    }
+                                    ctx.fillRect(-charWidth / 2 + 1, fontSize / 2 + 2, charWidth - 2, 3);
+                                }
+                            } else {
+                                ctx.fillStyle = '#666'; 
+                            }
+                        }
+                        ctx.fillText(line[c], -charWidth / 2, -fontSize / 2);
+                        ctx.restore();
+                    }
+                }
+
+                smallBall.trail.forEach(t => {
+                    let sx = t.x + offsetX;
+                    let sy = t.y + offsetY;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 12 * t.life, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(0, 255, 255, ${t.life * 0.08})`;
+                    ctx.fill();
+                });
+
+                let sScreenX = smallBall.currentX + offsetX;
+                let sScreenY = smallBall.currentY + offsetY;
+                ctx.beginPath();
+                ctx.arc(sScreenX, sScreenY, 12, 0, Math.PI * 2);
+                ctx.fillStyle = '#00ffff';
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.shadowBlur = 0; 
+
+                let lScreenX = largeBall.currentX + offsetX;
+                let lScreenY = largeBall.currentY + offsetY;
+                
+                if (largeBall.state === 'chasing' || largeBall.state === 'waiting') {
+                    lScreenY += Math.sin(Date.now() / 300) * 12;
+                }
+                
+                let baseRadius = 45;
+                let pulseScale = (largeBall.state === 'waiting') ? 1 + 0.1 * Math.sin(Date.now() / 150) : 1;
+                let currentRadius = (baseRadius + Math.sin(Date.now() / 150) * 4) * largeBall.scale * pulseScale;
+                
+                let pulseOpacity = 0.5 + 0.3 * Math.sin(Date.now() / 100);
+                let gradHalo = ctx.createRadialGradient(lScreenX, lScreenY, currentRadius * 0.7, lScreenX, lScreenY, currentRadius * 1.8);
+                gradHalo.addColorStop(0, `rgba(255, 20, 50, ${pulseOpacity})`);
+                gradHalo.addColorStop(1, `rgba(255, 20, 50, 0)`);
+                
+                ctx.beginPath();
+                ctx.arc(lScreenX, lScreenY, currentRadius * 1.8, 0, Math.PI * 2);
+                ctx.fillStyle = gradHalo;
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(lScreenX, lScreenY, currentRadius, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff0522';
+                ctx.shadowBlur = 40 + 20 * Math.sin(Date.now() / 150);
+                ctx.shadowColor = '#ff0000';
+                ctx.fill();
+
+                if(largeBall.state === 'jumping' || largeBall.state === 'falling') {
+                    ctx.beginPath();
+                    ctx.arc(lScreenX, lScreenY - 15, currentRadius * 1.1, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 17, 51, 0.4)';
+                    ctx.fill();
+                }
+                ctx.shadowBlur = 0; 
+            }
+
+            ctx.restore(); 
+        }
+
+        resize(); 
+        requestAnimationFrame(mainLoop);
+    </script>
+
+<style>
+/* ===== STAR CODE 右上角统一图标控制组 ===== */
+.star-ctrl {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 4px;
+    background: rgba(4, 8, 16, 0.68);
+    border: 1px solid rgba(0, 255, 255, 0.28);
+    box-shadow:
+        inset 0 0 18px rgba(0, 255, 255, 0.035),
+        0 8px 26px rgba(0, 0, 0, 0.34),
+        0 0 16px rgba(0, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+.star-ctrl .tc-btn {
+    width: 38px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-right: 1px solid rgba(0, 255, 255, 0.14);
+    border-radius: 0;
+    background: transparent;
+    color: #aeb9c6;
+    cursor: pointer;
+    font: 600 17px/1 "Segoe UI Symbol", "Segoe UI Emoji", system-ui, sans-serif;
+    transition: color .18s ease, background .18s ease, text-shadow .18s ease, box-shadow .18s ease;
+    outline: none;
+}
+.star-ctrl .tc-btn:last-child { border-right: 0; }
+.star-ctrl .tc-btn:hover {
+    color: #00ffff;
+    background: rgba(0, 255, 255, 0.08);
+    text-shadow: 0 0 10px rgba(0, 255, 255, .8);
+    box-shadow: inset 0 -2px 0 rgba(0, 255, 255, .7);
+}
+.star-ctrl .tc-btn:active {
+    background: rgba(0, 255, 255, 0.14);
+    transform: translateY(1px);
+}
+.star-ctrl #tc-sound.is-muted {
+    color: #6d7682;
+    text-shadow: none;
+}
+.star-ctrl #tc-exitfs:hover {
+    color: #d942f5;
+    text-shadow: 0 0 10px rgba(217, 66, 245, .75);
+    box-shadow: inset 0 -2px 0 rgba(217, 66, 245, .75);
+}
+
+/* 全屏时让主页星空、游戏画布和遮罩层真正覆盖整个显示区域 */
+html:fullscreen,
+html:-webkit-full-screen,
+html:fullscreen body,
+html:-webkit-full-screen body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #050508;
+}
+html:fullscreen #gameCanvas,
+html:-webkit-full-screen #gameCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+}
+html:fullscreen .screen-overlay,
+html:-webkit-full-screen .screen-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+}
+</style>
+
+<div class="star-ctrl" role="group" aria-label="页面控制">
+    <button class="tc-btn" id="tc-sound" type="button" title="关闭声音" aria-label="关闭声音">🔊</button>
+    <button class="tc-btn" id="tc-back" type="button" title="返回主页" aria-label="返回主页">⌂</button>
+    <button class="tc-btn" id="tc-fs" type="button" title="全屏显示" aria-label="全屏显示">⛶</button>
+    <button class="tc-btn" id="tc-exitfs" type="button" title="退出全屏" aria-label="退出全屏" style="display:none">⤢</button>
+</div>
+
+<script>
+(function () {
+    var back = document.getElementById('tc-back');
+    var fs = document.getElementById('tc-fs');
+    var exitfs = document.getElementById('tc-exitfs');
+    var soundBtn = document.getElementById('tc-sound');
+
+    /* ---------- 深空背景音乐：主页加载即尝试播放，浏览器拦截时首个交互自动解锁 ---------- */
+    var ambientEnabled = true;
+    var ambientCtx = null;
+    var ambientMaster = null;
+    var musicTimer = null;
+    var musicNextTime = 0;
+    var musicStep = 0;
+    var ambientReverb = null;
+    var ambientDelay = null;
+    var ambientDelayFeedback = null;
+
+    /*
+       音乐设计：慢速深空氛围，不再使用明显电子节拍。
+       - 宽广和弦 Pad：像星云持续漂浮
+       - 低频 Drone：提供深空尺度感
+       - 稀疏 Bell：模拟远处星光闪烁
+       - 极慢旋律：保持“音乐感”，但不干扰打字
+    */
+    var MUSIC_BPM = 54;
+    var MUSIC_BEAT_SEC = 60 / MUSIC_BPM;
+    var MUSIC_LOOKAHEAD = 2.4;
+    var MUSIC_MASTER_GAIN = 0.42;
+
+    /* Dm(add9) → Bbmaj7 → Fmaj7(add9) → C(add9)，16 拍一轮，氛围偏浩瀚、克制 */
+    var SPACE_CHORDS = [
+        [38, 45, 50, 53, 57],
+        [34, 41, 46, 50, 53],
+        [41, 48, 53, 57, 60],
+        [36, 43, 48, 50, 55]
+    ];
+    var STAR_PATTERN = [0, 2, 4, 1, 3, 4, 2, 1];
+    var LEAD_NOTES = [62, 65, 69, 67, 65, 62, 60, 57];
+
+    function midiToFreq(note) {
+        return 440 * Math.pow(2, (note - 69) / 12);
+    }
+
+    function createImpulseResponse(ctx, seconds, decay) {
+        var rate = ctx.sampleRate;
+        var length = Math.floor(rate * seconds);
+        var impulse = ctx.createBuffer(2, length, rate);
+        for (var ch = 0; ch < 2; ch++) {
+            var data = impulse.getChannelData(ch);
+            for (var i = 0; i < length; i++) {
+                var env = Math.pow(1 - i / length, decay);
+                data[i] = (Math.random() * 2 - 1) * env;
+            }
+        }
+        return impulse;
+    }
+
+    function routeVoice(node, dryGain, wetGain) {
+        if (!ambientMaster) return;
+        var dry = ambientCtx.createGain();
+        dry.gain.value = dryGain;
+        node.connect(dry);
+        dry.connect(ambientMaster);
+
+        if (ambientReverb) {
+            var wet = ambientCtx.createGain();
+            wet.gain.value = wetGain;
+            node.connect(wet);
+            wet.connect(ambientReverb);
+        }
+        if (ambientDelay) {
+            var echo = ambientCtx.createGain();
+            echo.gain.value = wetGain * 0.42;
+            node.connect(echo);
+            echo.connect(ambientDelay);
+        }
+    }
+
+    function createPadVoice(freq, when, duration, level, detune, panValue) {
+        if (!ambientCtx || !ambientMaster) return;
+        var osc = ambientCtx.createOscillator();
+        var gain = ambientCtx.createGain();
+        var filter = ambientCtx.createBiquadFilter();
+        var pan = ambientCtx.createStereoPanner ? ambientCtx.createStereoPanner() : null;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, when);
+        osc.detune.setValueAtTime(detune || 0, when);
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, when);
+        filter.frequency.linearRampToValueAtTime(2100, when + duration * 0.45);
+        filter.frequency.linearRampToValueAtTime(1000, when + duration);
+        filter.Q.value = 0.35;
+
+        gain.gain.setValueAtTime(0.0001, when);
+        gain.gain.exponentialRampToValueAtTime(level, when + Math.min(1.5, duration * 0.30));
+        gain.gain.setValueAtTime(level * 0.92, when + duration * 0.58);
+        gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        if (pan) {
+            pan.pan.setValueAtTime(panValue || 0, when);
+            gain.connect(pan);
+            routeVoice(pan, 0.62, 0.72);
+        } else {
+            routeVoice(gain, 0.62, 0.72);
+        }
+        osc.start(when);
+        osc.stop(when + duration + 0.2);
+    }
+
+    function createBell(freq, when, level, panValue) {
+        if (!ambientCtx || !ambientMaster) return;
+        var osc = ambientCtx.createOscillator();
+        var overtone = ambientCtx.createOscillator();
+        var gain = ambientCtx.createGain();
+        var overtoneGain = ambientCtx.createGain();
+        var pan = ambientCtx.createStereoPanner ? ambientCtx.createStereoPanner() : null;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, when);
+        overtone.type = 'sine';
+        overtone.frequency.setValueAtTime(freq * 2.01, when);
+
+        gain.gain.setValueAtTime(0.0001, when);
+        gain.gain.exponentialRampToValueAtTime(level, when + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, when + 2.4);
+        overtoneGain.gain.setValueAtTime(0.0001, when);
+        overtoneGain.gain.exponentialRampToValueAtTime(level * 0.22, when + 0.012);
+        overtoneGain.gain.exponentialRampToValueAtTime(0.0001, when + 1.4);
+
+        osc.connect(gain);
+        overtone.connect(overtoneGain);
+        overtoneGain.connect(gain);
+        if (pan) {
+            pan.pan.setValueAtTime(panValue || 0, when);
+            gain.connect(pan);
+            routeVoice(pan, 0.40, 0.95);
+        } else {
+            routeVoice(gain, 0.40, 0.95);
+        }
+        osc.start(when); overtone.start(when);
+        osc.stop(when + 2.6); overtone.stop(when + 1.6);
+    }
+
+    function createDrone(freq, when, duration, level) {
+        if (!ambientCtx || !ambientMaster) return;
+        [-7, 0, 7].forEach(function(det, i) {
+            var osc = ambientCtx.createOscillator();
+            var gain = ambientCtx.createGain();
+            var filter = ambientCtx.createBiquadFilter();
+            osc.type = i === 1 ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(freq, when);
+            osc.detune.setValueAtTime(det, when);
+            filter.type = 'lowpass';
+            filter.frequency.value = 420;
+            filter.Q.value = 0.3;
+            gain.gain.setValueAtTime(0.0001, when);
+            gain.gain.exponentialRampToValueAtTime(level * (i === 1 ? 1 : 0.5), when + 1.8);
+            gain.gain.setValueAtTime(level * (i === 1 ? .94 : .46), when + duration * .68);
+            gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+            osc.connect(filter); filter.connect(gain);
+            routeVoice(gain, 0.82, 0.35);
+            osc.start(when); osc.stop(when + duration + .25);
+        });
+    }
+
+    function scheduleChord(chord, when) {
+        var duration = MUSIC_BEAT_SEC * 4.45;
+        chord.slice(1).forEach(function(note, i) {
+            var f = midiToFreq(note);
+            createPadVoice(f, when, duration, 0.055, (i - 1.5) * 4, (i - 1.5) * 0.20);
+            if (i < 2) createPadVoice(f * 0.5, when + 0.04, duration, 0.025, (i ? 4 : -4), (i ? 0.28 : -0.28));
+        });
+        createDrone(midiToFreq(chord[0]), when, duration + MUSIC_BEAT_SEC * 0.5, 0.060);
+    }
+
+    function scheduleStar(chord, when, beatInChord) {
+        /* 不是每拍都响，留出大片空间 */
+        if (beatInChord !== 1 && beatInChord !== 3) return;
+        var idx = STAR_PATTERN[(musicStep + beatInChord) % STAR_PATTERN.length] % (chord.length - 1);
+        var note = chord[idx + 1] + 24;
+        createBell(midiToFreq(note), when + MUSIC_BEAT_SEC * 0.10, 0.035, beatInChord === 1 ? -0.45 : 0.45);
+    }
+
+    function scheduleLead(when, globalBeat) {
+        /* 每 8 拍出现一次很轻的远距离旋律点，不形成明显主旋律抢注意力 */
+        if (globalBeat % 8 !== 6) return;
+        var note = LEAD_NOTES[Math.floor(globalBeat / 8) % LEAD_NOTES.length];
+        createBell(midiToFreq(note + 12), when, 0.028, Math.sin(globalBeat * 0.9) * 0.55);
+    }
+
+    function scheduleMusic() {
+        if (!ambientCtx || !ambientMaster) return;
+        var horizon = ambientCtx.currentTime + MUSIC_LOOKAHEAD;
+        while (musicNextTime < horizon) {
+            var chordIndex = Math.floor(musicStep / 4) % SPACE_CHORDS.length;
+            var beatInChord = musicStep % 4;
+            var chord = SPACE_CHORDS[chordIndex];
+            if (beatInChord === 0) scheduleChord(chord, musicNextTime);
+            scheduleStar(chord, musicNextTime, beatInChord);
+            scheduleLead(musicNextTime, musicStep);
+            musicNextTime += MUSIC_BEAT_SEC;
+            musicStep = (musicStep + 1) % 64;
+        }
+    }
+
+    function buildAmbient() {
+        if (ambientCtx) return;
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) {
+            ambientEnabled = false;
+            updateSoundButton();
+            return;
+        }
+
+        ambientCtx = new AudioCtx();
+        ambientMaster = ambientCtx.createGain();
+        ambientMaster.gain.value = ambientEnabled ? MUSIC_MASTER_GAIN : 0.0001;
+
+        var compressor = ambientCtx.createDynamicsCompressor();
+        compressor.threshold.value = -20;
+        compressor.knee.value = 20;
+        compressor.ratio.value = 2.2;
+        compressor.attack.value = 0.025;
+        compressor.release.value = 0.55;
+
+        ambientReverb = ambientCtx.createConvolver();
+        ambientReverb.buffer = createImpulseResponse(ambientCtx, 5.6, 2.5);
+        var reverbGain = ambientCtx.createGain();
+        reverbGain.gain.value = 0.55;
+        ambientReverb.connect(reverbGain);
+        reverbGain.connect(ambientMaster);
+
+        ambientDelay = ambientCtx.createDelay(2.0);
+        ambientDelay.delayTime.value = MUSIC_BEAT_SEC * 0.75;
+        ambientDelayFeedback = ambientCtx.createGain();
+        ambientDelayFeedback.gain.value = 0.22;
+        ambientDelay.connect(ambientDelayFeedback);
+        ambientDelayFeedback.connect(ambientDelay);
+        ambientDelay.connect(ambientMaster);
+
+        ambientMaster.connect(compressor);
+        compressor.connect(ambientCtx.destination);
+
+        musicNextTime = ambientCtx.currentTime + 0.06;
+        musicStep = 0;
+        scheduleMusic();
+        musicTimer = setInterval(scheduleMusic, 120);
+    }
+
+    function ensureAmbientStarted() {
+        if (!ambientEnabled) return Promise.resolve(false);
+        buildAmbient();
+        if (!ambientCtx) return Promise.resolve(false);
+        if (ambientCtx.state === 'running') {
+            if (musicNextTime < ambientCtx.currentTime) musicNextTime = ambientCtx.currentTime + 0.04;
+            scheduleMusic();
+            return Promise.resolve(true);
+        }
+        return ambientCtx.resume().then(function () {
+            if (musicNextTime < ambientCtx.currentTime) musicNextTime = ambientCtx.currentTime + 0.04;
+            scheduleMusic();
+            return ambientCtx.state === 'running';
+        }).catch(function () { return false; });
+    }
+
+    function updateSoundButton() {
+        if (!soundBtn) return;
+        soundBtn.textContent = ambientEnabled ? '🔊' : '🔇';
+        soundBtn.classList.toggle('is-muted', !ambientEnabled);
+        soundBtn.title = ambientEnabled ? '关闭音乐' : '开启音乐';
+        soundBtn.setAttribute('aria-label', soundBtn.title);
+    }
+
+    function setAmbientEnabled(enabled) {
+        ambientEnabled = !!enabled;
+        if (ambientEnabled) ensureAmbientStarted();
+        if (ambientMaster && ambientCtx) {
+            var now = ambientCtx.currentTime;
+            ambientMaster.gain.cancelScheduledValues(now);
+            ambientMaster.gain.setValueAtTime(Math.max(0.0001, ambientMaster.gain.value), now);
+            ambientMaster.gain.exponentialRampToValueAtTime(ambientEnabled ? MUSIC_MASTER_GAIN : 0.0001, now + 0.22);
+        }
+        updateSoundButton();
+    }
+
+    if (soundBtn) {
+        soundBtn.addEventListener('click', function (event) {
+            event.stopPropagation();
+            setAmbientEnabled(!ambientEnabled);
+        });
+    }
+
+    /* 页面主界面出现时立即尝试有声播放。允许自动播放的浏览器会直接开始。 */
+    function attemptAutoplay() {
+        ensureAmbientStarted().then(function (started) {
+            if (started) document.documentElement.dataset.spaceMusic = 'playing';
+        });
+    }
+    attemptAutoplay();
+    window.addEventListener('load', attemptAutoplay, { once: true });
+    setTimeout(attemptAutoplay, 180);
+
+    /* 若浏览器因自动播放策略暂停 AudioContext，首个用户动作立即解锁，不需要再点声音按钮。 */
+    function unlockMusic() {
+        ensureAmbientStarted();
+    }
+    window.addEventListener('pointerdown', unlockMusic, { once: true, capture: true });
+    window.addEventListener('keydown', unlockMusic, { once: true, capture: true });
+    window.addEventListener('touchstart', unlockMusic, { once: true, capture: true });
+    updateSoundButton();
+
+    /* ---------- 返回主页 ---------- */
+    if (back) back.addEventListener('click', function () {
+        try { window.parent.postMessage('kuaioj:typing:exit', '*'); } catch (e) {}
+    });
+
+    /* ---------- 全屏 ---------- */
+    function enterFs() {
+        var el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+    function exitFs() {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+    if (fs) fs.addEventListener('click', enterFs);
+    if (exitfs) exitfs.addEventListener('click', exitFs);
+
+    function refreshFullscreenCanvas() {
+        /* 等浏览器完成全屏 viewport 切换后再重新铺满 Canvas 和星空粒子 */
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                try {
+                    resize();
+                    initBackgrounds();
+                    drawAll();
+                } catch (e) {}
+            });
+        });
+    }
+
+    function syncFullscreen() {
+        var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        document.body.classList.toggle('tc-fullscreen', isFs);
+        if (fs) fs.style.display = isFs ? 'none' : '';
+        if (exitfs) exitfs.style.display = isFs ? '' : 'none';
+        refreshFullscreenCanvas();
+    }
+
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+})();
+</script>
+</body>
+</html>

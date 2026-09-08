@@ -1,0 +1,2975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编程打字练习</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --text-color: #333333;
+            --correct-color: #1976d2;
+            --error-color: #e53935;
+            --cursor-bg: #e0e0e0;
+            --primary-color: #1976d2;
+            --border-color: #e5e7eb;
+            --sidebar-bg: #f8fafc;
+            
+            --finger-skin-color: #fce2d3;
+            --finger-nail-color: #ffffff;
+            --finger-stroke-color: #fce2d3;
+            --finger-expected-color: #61a8ff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 1380px;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e0e0e0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            background-color: #fafafa;
+            padding: 14px 18px;
+            border-bottom: 1px solid #eaeaea;
+            flex-shrink: 0;
+        }
+
+        .header-left,
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .header-left {
+            flex: 1;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-btn {
+            padding: 7px 14px;
+            font-size: 14px;
+            background-color: #f7fbfe;
+            color: #46657d;
+            border: 1px solid #c7d9e6;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .custom-btn:hover:not(:disabled) {
+            background-color: #edf6fc;
+            border-color: #8fb7d3;
+            color: #2d648d;
+        }
+
+        .custom-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .pause-btn.is-paused {
+            color: #8a5b16;
+            background-color: #fff4dd;
+            border-color: #e7c784;
+        }
+
+        .filter-btn.is-active {
+            color: #2e7d32;
+            background-color: #e8f5e9;
+            border-color: #81c784;
+        }
+
+        .stat-badge {
+            font-size: 14px;
+            font-weight: bold;
+            background-color: #e1f5fe;
+            padding: 7px 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+
+        .stat-time { color: #ef6c00; }
+        .stat-typed { color: #8e24aa; }
+        .stat-speed { color: #0277bd; }
+        .stat-error { color: #d32f2f; }
+        .stat-accuracy { color: #2e7d32; }
+        .stat-total { color: #6a1b9a; }
+        .stat-divider { color: #81d4fa; font-weight: normal; }
+
+        .workspace {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 270px;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #ffffff;
+        }
+
+        .sidebar-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .sidebar-title {
+            margin: 0;
+            font-size: 15px;
+            color: #1f2937;
+        }
+
+        .file-count {
+            min-width: 26px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: #e1f5fe;
+            color: #0277bd;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .folder-btn,
+        .single-file-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .folder-btn {
+            color: #285f8b;
+            background-color: #e2f0fb;
+            border-color: #a8c9df;
+        }
+
+        .folder-btn:hover:not(:disabled) {
+            color: #1f547c !important;
+            background-color: #d4e9f8;
+            border-color: #83afd0 !important;
+        }
+
+        .single-file-btn {
+            color: #285f8b;
+            background-color: #e2f0fb;
+            border-color: #a8c9df;
+        }
+
+        .single-file-btn:hover:not(:disabled) {
+            color: #1f547c !important;
+            background-color: #d4e9f8;
+            border-color: #83afd0 !important;
+        }
+
+        .folder-status {
+            min-height: 18px;
+            margin-top: 8px;
+            color: #6b7280;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .file-list {
+            flex: 1;
+            min-height: 0;
+            margin: 0;
+            padding: 8px;
+            list-style: none;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin-bottom: 4px;
+            padding: 9px 10px;
+            color: #374151;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.15s;
+        }
+
+        .file-item:hover {
+            background-color: #eef6ff;
+            border-color: #dbeafe;
+        }
+
+        .file-item.active {
+            color: #0d47a1;
+            background-color: #e3f2fd;
+            border-color: #90caf9;
+            font-weight: 600;
+        }
+
+        .file-icon {
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .file-info {
+            min-width: 0;
+        }
+
+        .file-name {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .file-path {
+            display: block;
+            margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #9ca3af;
+            font-size: 11px;
+            font-weight: normal;
+        }
+
+        .empty-files {
+            padding: 24px 12px;
+            color: #9ca3af;
+            font-size: 13px;
+            line-height: 1.6;
+            text-align: center;
+        }
+
+        .main-panel {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .typing-wrapper {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #typing-container {
+            height: 100%;
+            width: 100%;
+            background-color: #ffffff;
+            padding: 24px 24px 24px 12px; 
+            font-size: 20px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            tab-size: 4;
+            -moz-tab-size: 4;
+            -o-tab-size: 4;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            scrollbar-width: thin;
+            scrollbar-color: #c1c1c1 transparent;
+            transition: filter 0.2s, opacity 0.2s;
+            counter-reset: line-counter; 
+        }
+
+        #typing-container.paused {
+            filter: blur(1.2px);
+            opacity: 0.45;
+            user-select: none;
+        }
+
+        #typing-container::-webkit-scrollbar { width: 6px; }
+        #typing-container::-webkit-scrollbar-track { background: transparent; }
+        #typing-container::-webkit-scrollbar-thumb { background-color: #d1d1d1; border-radius: 4px; }
+        #typing-container::-webkit-scrollbar-thumb:hover { background-color: #a8a8a8; }
+
+        .pause-overlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.22);
+            pointer-events: none;
+        }
+
+        .pause-overlay.visible {
+            display: flex;
+        }
+
+        .pause-card {
+            padding: 18px 30px;
+            border: 1px solid #fed7aa;
+            border-radius: 10px;
+            background-color: rgba(255, 247, 237, 0.96);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+            color: #c2410c;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .line { 
+            display: block; 
+            position: relative;
+            padding-left: calc(3ch + 16px); 
+        }
+        
+        .line::before {
+            counter-increment: line-counter;
+            content: counter(line-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 3ch;
+            text-align: right; 
+            color: #285f8b; 
+            font-size: 20px; 
+            user-select: none;
+            pointer-events: none;
+            font-family: inherit;
+        }
+
+        .char {
+            display: inline-block;
+            border-bottom: 2px solid transparent;
+            min-width: 11px;
+        }
+
+        .fog-hidden {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .correct { color: var(--correct-color); }
+
+        .incorrect {
+            color: var(--error-color);
+            background-color: rgba(229, 57, 53, 0.15);
+        }
+
+        .auto-skip { color: #9e9e9e; }
+
+        .current {
+            background-color: var(--cursor-bg);
+            border-bottom: 2px solid #f57c00;
+            animation: blink 1s step-end infinite;
+        }
+
+        #typing-container.paused .current {
+            animation-play-state: paused;
+        }
+
+        @keyframes blink {
+            50% { border-bottom-color: transparent; }
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #ffffff;
+            padding: 32px 48px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            min-width: 280px;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            color: #333;
+            margin-bottom: 24px;
+            font-size: 22px;
+        }
+
+        .modal-stats {
+            margin-bottom: 24px;
+            text-align: left;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .modal-stats div {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #e0e0e0;
+            padding: 12px 0;
+        }
+
+        .modal-stats div:last-child { border-bottom: none; }
+
+        .modal-btn {
+            background-color: #e2f0fb;
+            color: #285f8b;
+            border: 1px solid #a8c9df;
+            padding: 10px 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .modal-btn:hover {
+            background-color: #d4e9f8;
+            color: #1f547c;
+            border-color: #83afd0;
+        }
+
+        .comment-skip {
+            color: #b5bcc7;
+            background: none;
+        }
+
+        .file-source-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+        }
+
+        .file-source-actions .custom-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px 6px;
+            font-size: 12px;
+        }
+
+        .sidebar-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .sidebar-actions .custom-btn {
+            padding: 7px 4px;
+            font-size: 12px;
+        }
+
+        .record-save-status {
+            min-height: 20px;
+            margin: -8px 0 18px;
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .records-modal-content {
+            width: min(900px, calc(100vw - 40px));
+            max-height: calc(100vh - 60px);
+            padding: 26px 28px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .records-content {
+            min-height: 120px;
+            overflow: auto;
+        }
+
+        .record-table-wrap {
+            overflow: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+
+        .record-table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .record-table th,
+        .record-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: center;
+        }
+
+        .record-table th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background-color: #f8fafc;
+            color: #334155;
+        }
+
+        .record-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .record-table .record-time { color: #ef6c00; }
+        .record-table .record-speed { color: #0277bd; }
+        .record-table .record-accuracy { color: #2e7d32; }
+        .record-table .record-error { color: #d32f2f; }
+        .record-table .record-total { color: #6a1b9a; }
+
+        .record-table th.record-time,
+        .record-table th.record-speed,
+        .record-table th.record-accuracy,
+        .record-table th.record-error,
+        .record-table th.record-total {
+            font-weight: 700;
+        }
+
+        .record-empty {
+            padding: 38px 20px;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        .records-close-row {
+            margin-top: 18px;
+            text-align: center;
+        }
+
+        @media (max-width: 980px) {
+            body { padding: 10px; }
+            .header { align-items: flex-start; flex-direction: column; }
+            .header-left, .header-right { width: 100%; flex-wrap: wrap; }
+            .stat-badge { white-space: normal; line-height: 1.9; }
+            .sidebar { width: 220px; min-width: 190px; }
+        }
+
+        .keyboard-panel {
+            flex-shrink: 0;
+            padding: 10px 14px 12px;
+            background-color: #f7fbfe;
+            border-top: 1px solid #d8e7f1;
+            overflow-x: auto;
+            transition: opacity 0.2s;
+        }
+
+        .keyboard-panel.is-hidden {
+            display: none;
+        }
+
+        .keyboard-panel-inner {
+            min-width: 760px;
+            max-width: 1040px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .keyboard-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 8px;
+            color: #41627b;
+            font-size: 12px;
+        }
+
+        .keyboard-panel-title {
+            color: #294f6c;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .keyboard-hint {
+            min-width: 0;
+            overflow: hidden;
+            color: #58758b;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .finger-guide {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(54px, 1fr)) 22px repeat(5, minmax(54px, 1fr));
+            gap: 5px;
+            margin-bottom: 8px;
+        }
+
+        .finger-divider {
+            width: 1px;
+            height: 100%;
+            justify-self: center;
+            background-color: #d4e3ed;
+        }
+
+        .finger-item {
+            padding: 5px 4px;
+            color: #60798d;
+            background-color: #ffffff;
+            border: 1px solid #d3e1eb;
+            border-radius: 6px;
+            font-size: 11px;
+            text-align: center;
+            transition: all 0.12s;
+            user-select: none;
+        }
+
+        .finger-item.expected {
+            color: #1f5d89;
+            background-color: #dcefff;
+            border-color: #75afd5;
+            box-shadow: 0 0 0 2px rgba(90, 157, 202, 0.14);
+            font-weight: 700;
+        }
+
+        .finger-item.pressed {
+            color: #1f5d89;
+            background-color: #dcefff;
+            border-color: #75afd5;
+            transform: translateY(-1px);
+        }
+
+        .keyboard-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            user-select: none;
+            position: relative;
+            z-index: 1; 
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .keycap {
+            position: relative;
+            display: flex;
+            flex: 1 1 0;
+            align-items: center;
+            justify-content: center;
+            min-width: 39px;
+            height: 34px;
+            padding: 2px 5px;
+            color: #405d73;
+            background: linear-gradient(180deg, #ffffff 0%, #edf5fa 100%);
+            border: 1px solid #c8d9e5;
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(51, 84, 108, 0.07);
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 12px;
+            line-height: 1;
+            transition: all 0.1s;
+        }
+
+        .keycap .key-main {
+            font-weight: 700;
+        }
+
+        .keycap .key-shift {
+            position: absolute;
+            top: 3px;
+            right: 5px;
+            color: #8196a6;
+            font-size: 9px;
+        }
+
+        .keycap.key-wide { flex-grow: 1.55; }
+        .keycap.key-wider { flex-grow: 1.9; }
+        .keycap.key-space { flex-grow: 6.2; }
+
+        .keycap.expected {
+            z-index: 2;
+            color: #184f78;
+            background: linear-gradient(180deg, #e6f4ff 0%, #d4eaff 100%);
+            border-color: #5f9fca;
+            box-shadow: 0 0 0 2px rgba(70, 142, 191, 0.16);
+            transform: translateY(-1px);
+        }
+
+        .keycap.expected .key-shift {
+            color: #2e6f9d;
+        }
+
+        .keycap.pressed {
+            z-index: 3;
+            color: #184f78;
+            background: linear-gradient(180deg, #e6f4ff 0%, #d4eaff 100%);
+            border-color: #5f9fca;
+            box-shadow: 0 0 0 2px rgba(70, 142, 191, 0.16);
+            transform: translateY(1px);
+        }
+
+        .hand-model-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-top: -55px; 
+            pointer-events: none;
+            position: relative;
+            z-index: 5; 
+            height: 160px; 
+        }
+
+        #hand-model-svg {
+            height: 100%;
+            width: auto;
+            max-width: 100%;
+            display: block;
+        }
+        
+        #hand-model-svg .highlight-zone { 
+            fill: transparent; 
+            transition: fill 0.15s ease; 
+        }
+        
+        #hand-model-svg .highlight-zone.expected { 
+            fill: var(--finger-expected-color); 
+        }
+
+        @media (max-height: 780px) {
+            .keyboard-panel { padding-top: 7px; padding-bottom: 8px; }
+            .finger-item { padding: 3px 4px; }
+            .keycap { height: 29px; }
+            .hand-model-container { height: 130px; margin-top: -45px; }
+        }
+
+
+        /* ===== 2026 UI Redesign Overrides ===== */
+        :root {
+            --bg-color: #eef3f8;
+            --text-color: #273444;
+            --primary-color: #2f6f9f;
+            --border-color: #dfe8f0;
+            --sidebar-bg: #f7fafc;
+            --surface: #ffffff;
+            --surface-soft: #f7fafc;
+            --surface-blue: #f2f8fc;
+            --shadow-soft: 0 10px 35px rgba(34, 63, 89, 0.10);
+            --shadow-card: 0 3px 14px rgba(34, 63, 89, 0.07);
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --finger-skin-color: #fce2d3;
+        }
+
+        body {
+            padding: 16px;
+            background:
+                radial-gradient(circle at 8% 0%, rgba(87, 151, 197, 0.10), transparent 28%),
+                radial-gradient(circle at 100% 100%, rgba(120, 178, 219, 0.08), transparent 24%),
+                var(--bg-color);
+        }
+
+        .app-container {
+            max-width: 1520px;
+            border: 1px solid rgba(191, 208, 221, 0.75);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-soft);
+            background: rgba(255,255,255,0.98);
+        }
+
+        .header {
+            min-height: 62px;
+            padding: 10px 14px 10px 18px;
+            gap: 12px;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            border-bottom: 1px solid #e7edf3;
+        }
+
+        .current-file-name {
+            position: relative;
+            padding-left: 13px;
+            font-size: 14px;
+            color: #274056;
+        }
+
+        .header-right {
+            justify-content: flex-end;
+            gap: 7px;
+        }
+
+        .custom-btn {
+            min-height: 34px;
+            padding: 7px 12px;
+            border-radius: 9px;
+            border-color: #cadbe7;
+            background: #f7fbfe;
+            color: #3f6179;
+            font-weight: 600;
+            box-shadow: 0 1px 1px rgba(37, 73, 101, 0.03);
+        }
+
+        .custom-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(55, 97, 127, 0.08);
+        }
+
+        .stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            min-height: 34px;
+            padding: 6px 10px;
+            border: 1px solid #d8eaf5;
+            border-radius: 9px;
+            background: #f3faff;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+            font-size: 12px;
+        }
+
+        .stat-divider { color: #bad6e8; }
+
+        .workspace {
+            gap: 0;
+            background: #fff;
+        }
+
+        .sidebar {
+            width: 240px;
+            min-width: 210px;
+            background: linear-gradient(180deg, #f8fbfd 0%, #f4f8fb 100%);
+            border-right: 1px solid #e3ebf1;
+        }
+
+        .sidebar-header {
+            padding: 14px;
+            background: rgba(255,255,255,0.82);
+            backdrop-filter: blur(6px);
+        }
+
+        .sidebar-title-row { margin-bottom: 10px; }
+        .sidebar-title { font-size: 14px; letter-spacing: .2px; }
+
+        .file-count {
+            min-width: 28px;
+            padding: 3px 8px;
+            background: #e8f4fb;
+            color: #2b6c98;
+            border: 1px solid #d2e8f6;
+        }
+
+        .file-list { padding: 9px 8px 14px; }
+
+        .file-item {
+            margin-bottom: 5px;
+            padding: 9px 10px;
+            border-radius: 9px;
+        }
+
+        .file-item:hover {
+            background: #eef7fd;
+            border-color: #d8eaf6;
+        }
+
+        .file-item.active {
+            color: #155b8a;
+            background: linear-gradient(135deg, #e8f5ff 0%, #f3faff 100%);
+            border-color: #b9d9ee;
+            box-shadow: inset 3px 0 0 #4c95c4, 0 2px 8px rgba(50, 101, 137, 0.06);
+        }
+
+        .main-panel {
+            background: #fff;
+        }
+
+        .typing-wrapper {
+            margin: 10px 10px 0;
+            border: 1px solid #e6edf2;
+            border-radius: 14px 14px 0 0;
+            box-shadow: var(--shadow-card);
+            background: #fff;
+        }
+
+        #typing-container {
+            padding: 22px 28px 22px 18px;
+            font-size: 19px;
+            line-height: 1.65;
+            background:
+                linear-gradient(90deg, rgba(243,248,252,.78) 0, rgba(243,248,252,.78) 58px, transparent 58px),
+                #ffffff;
+        }
+
+        .line { padding-left: calc(3ch + 17px); }
+        .line::before {
+            color: #6f8da3;
+            font-size: 16px;
+            font-weight: 600;
+            opacity: .9;
+        }
+
+        .char { min-width: 10px; border-radius: 3px; }
+        .current {
+            background-color: #e8eff4;
+            border-bottom-color: #ef8d32;
+            box-shadow: 0 0 0 2px rgba(239,141,50,.08);
+        }
+
+        /* 键盘区：放大键盘、压缩左右留白，形成更完整的底部操作台 */
+        .keyboard-panel {
+            margin: 0 10px 10px;
+            padding: 9px 8px 10px;
+            border: 1px solid #dceaf3;
+            border-top: 1px solid #d7e7f1;
+            border-radius: 0 0 14px 14px;
+            background: linear-gradient(180deg, #f5fafe 0%, #edf6fb 100%);
+            box-shadow: 0 8px 18px rgba(45, 92, 126, 0.06);
+            overflow-x: auto;
+        }
+
+        .keyboard-panel-inner {
+            width: calc(100% - 4px);
+            min-width: 820px;
+            max-width: 1260px;
+            margin: 0 auto;
+            padding: 0 2px;
+        }
+
+        .keyboard-panel-header {
+            margin: 0 3px 7px;
+            padding: 0 2px;
+        }
+
+        .keyboard-panel-title {
+            font-size: 13px;
+            color: #2c5877;
+        }
+
+        .keyboard-hint {
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.65);
+            border: 1px solid #dce9f2;
+        }
+
+        .finger-guide {
+            grid-template-columns: repeat(5, minmax(58px, 1fr)) 16px repeat(5, minmax(58px, 1fr));
+            gap: 4px;
+            margin: 0 2px 7px;
+        }
+
+        .finger-item {
+            padding: 5px 4px;
+            border-radius: 7px;
+            background: rgba(255,255,255,.88);
+        }
+
+        .keyboard-layout {
+            gap: 5px;
+            padding: 0 2px;
+        }
+
+        .keyboard-row {
+            gap: 5px;
+            width: 100%;
+        }
+
+        .keycap {
+            min-width: 41px;
+            height: 38px;
+            border-radius: 7px;
+            font-size: 12px;
+            border-color: #bfd3e0;
+            background: linear-gradient(180deg, #ffffff 0%, #eef6fb 100%);
+            box-shadow: 0 2px 0 rgba(75, 110, 134, 0.10), 0 1px 3px rgba(42,78,104,.05);
+        }
+
+        .keycap.expected {
+            box-shadow: 0 0 0 2px rgba(70, 142, 191, 0.16), 0 5px 12px rgba(54,116,158,.12);
+        }
+
+        .hand-model-container {
+            height: 148px;
+            margin-top: -50px;
+        }
+
+        .modal-content {
+            border: 1px solid #dfe9f0;
+            border-radius: 16px;
+            box-shadow: 0 20px 55px rgba(31, 58, 79, .18);
+        }
+
+        @media (max-width: 1180px) {
+            body { padding: 8px; }
+            .app-container { border-radius: 12px; }
+            .header { flex-wrap: wrap; }
+            .header-left { flex-basis: 100%; }
+            .header-right { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+            .stat-badge { flex: 1 1 520px; }
+            .sidebar { width: 220px; min-width: 195px; }
+            .keyboard-panel-inner { min-width: 790px; }
+        }
+
+        @media (max-width: 860px) {
+            .sidebar { width: 190px; min-width: 170px; }
+            .typing-wrapper { margin-left: 6px; margin-right: 6px; }
+            .keyboard-panel { margin-left: 6px; margin-right: 6px; }
+            .keyboard-panel-inner { min-width: 760px; }
+        }
+
+        @media (max-height: 780px) {
+            .header { min-height: 54px; padding-top: 7px; padding-bottom: 7px; }
+            .typing-wrapper { margin-top: 7px; }
+            .keyboard-panel { margin-bottom: 7px; padding-top: 6px; padding-bottom: 7px; }
+            .keycap { height: 32px; }
+            .hand-model-container { height: 122px; margin-top: -42px; }
+        }
+
+
+        /* 全屏无缝布局：页面内容直接贴合浏览器四边 */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0 !important;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        body {
+            display: block;
+        }
+
+        .app-container {
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            margin: 0;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        /* 主练习区与键盘区也取消外围留白，最大化可用空间 */
+        .typing-wrapper {
+            margin: 0;
+            border-left: 0;
+            border-right: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .keyboard-panel {
+            margin: 0;
+            border-left: 0;
+            border-right: 0;
+            border-bottom: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .keyboard-panel-inner {
+            width: 100%;
+            max-width: none;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+
+        /* 光标和错误字符统一使用直角矩形，不保留圆角 */
+        .char,
+        .current,
+        .incorrect {
+            border-radius: 0;
+        }
+
+        /* 顶部工具栏：移除文件标题后，统计与练习控制在左，页面级操作固定在最右侧 */
+        .header {
+            justify-content: flex-start;
+        }
+
+        .header-right {
+            width: 100%;
+            flex: 1 1 auto;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+        }
+
+        .stat-badge {
+            flex: 0 0 auto;
+        }
+
+        .header-action-divider {
+            width: 1px;
+            height: 24px;
+            margin: 0 4px 0 6px;
+            background: #dbe5ec;
+            flex: 0 0 auto;
+        }
+
+        .page-nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            margin-left: auto;
+            flex: 0 0 auto;
+        }
+
+        .page-nav-btn {
+            min-width: 76px;
+            padding-left: 13px;
+            padding-right: 13px;
+            background: #ffffff;
+            border-color: #cfdce5;
+            color: #3d5d73;
+        }
+
+        .page-nav-btn:hover:not(:disabled) {
+            background: #f2f7fa;
+            border-color: #aebfcb;
+            color: #244b68;
+        }
+
+        @media (max-width: 1180px) {
+            .header-right {
+                flex-wrap: wrap;
+            }
+
+            .page-nav-actions {
+                margin-left: 0;
+            }
+
+            .header-action-divider {
+                display: none;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="header">
+        <div class="header-right">
+            <span id="combined-stats-display" class="stat-badge">
+                <span class="stat-time">时间: 00:00</span>
+                <span class="stat-divider">&nbsp;|&nbsp;</span>
+                <span class="stat-speed">速度: 0 字符/分钟</span>
+                <span class="stat-divider">&nbsp;|&nbsp;</span>
+                <span class="stat-error">输错率: 0.00%</span>
+                <span class="stat-divider">&nbsp;|&nbsp;</span>
+                <span class="stat-typed">输入 0 字符</span>
+                <span class="stat-divider">&nbsp;|&nbsp;</span>
+                <span class="stat-accuracy">正确率: 100.00%</span>
+            </span>
+            <button id="closing-bracket-filter-btn" class="custom-btn filter-btn" tabindex="-1" title="自动填充 )、]、}，且不计入输入字符数">过滤右括号</button>
+            <button id="fog-mode-btn" class="custom-btn filter-btn" tabindex="-1">迷雾模式</button>
+            <button id="keyboard-toggle-btn" class="custom-btn" tabindex="-1">隐藏键盘</button>
+            <button id="pause-btn" class="custom-btn pause-btn" tabindex="-1">暂停练习</button>
+            <button id="reset-btn" class="custom-btn" tabindex="-1">重置练习</button>
+            <span class="header-action-divider" aria-hidden="true"></span>
+            <div class="page-nav-actions" aria-label="页面操作">
+                <button id="tc-back" class="custom-btn page-nav-btn" tabindex="-1" title="返回主页">返回主页</button>
+                <button id="tc-fs" class="custom-btn page-nav-btn" tabindex="-1" title="全屏显示">全屏显示</button>
+                <button id="tc-exitfs" class="custom-btn page-nav-btn" tabindex="-1" title="退出全屏" style="display:none">退出全屏</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title-row">
+                    <h2 class="sidebar-title">练习文件</h2>
+                    <span id="file-count" class="file-count">0</span>
+                </div>
+                <div class="file-source-actions">
+                    <button id="folder-picker-btn" type="button" class="custom-btn folder-btn" tabindex="-1">读文件夹</button>
+                    <label for="file-upload" class="custom-btn single-file-btn" tabindex="-1">读单文件</label>
+                </div>
+                <input type="file" id="file-upload" accept=".cpp,.txt">
+                <input type="file" id="folder-upload" webkitdirectory directory multiple>
+                <div class="sidebar-actions">
+                    <button id="refresh-folder-btn" type="button" class="custom-btn" tabindex="-1" disabled>刷新目录</button>
+                    <button id="read-records-btn" type="button" class="custom-btn" tabindex="-1">历史记录</button>
+                </div>
+                <div id="folder-status" class="folder-status">首次请选择 HTML 所在文件夹。授权后会记住目录并尝试自动读取。</div>
+            </div>
+            <ul id="file-list" class="file-list"></ul>
+        </aside>
+
+        <main class="main-panel">
+            <div class="typing-wrapper">
+                <div id="typing-container"></div>
+                <div id="pause-overlay" class="pause-overlay">
+                    <div class="pause-card">练习已暂停</div>
+                </div>
+            </div>
+            <section id="keyboard-panel" class="keyboard-panel" aria-label="键盘与手指提示">
+                <div class="keyboard-panel-inner">
+                    <div class="keyboard-panel-header">
+                        <span class="keyboard-panel-title">键盘与手指提示</span>
+                        <span id="keyboard-hint" class="keyboard-hint">当前键位会自动高亮</span>
+                    </div>
+                    <div id="finger-guide" class="finger-guide"></div>
+                    <div id="keyboard-layout" class="keyboard-layout"></div>
+                    
+                    <div class="hand-model-container">
+                        <svg id="hand-model-svg" viewBox="0 0 660 200">
+                            
+                            <defs>
+                                <path id="nail-shape" fill="#ffffff" d="M -4.5,4 L -4.5,-2 A 4.5,4.5 0 0,1 4.5,-2 L 4.5,4 Z" />
+                                
+                                <g id="base-hand-shape">
+                                    <path fill="#fce2d3" d="
+                                        M 50,180
+                                        L 36,180 A 15,15 0 0,1 21,165
+                                        L 21,155
+                                        Q 21,140 -5,130
+                                        L -18,118
+                                        A 10,10 0 0,1 -8,98
+                                        L 8,112
+                                        Q 21,123 21,100
+                                        L 21,35 A 10,10 0 0,1 41,35 L 41,100
+                                        L 42,100 L 42,20 A 10,10 0 0,1 62,20 L 62,100
+                                        L 63,100 L 63,30 A 10,10 0 0,1 83,30 L 83,100
+                                        L 84,100 L 84,65 A 10,10 0 0,1 104,65 
+                                        L 104,100 
+                                        C 104,130 94,145 94,165 
+                                        A 15,15 0 0,1 79,180 
+                                        Z" />
+                                        
+                                    <line stroke="#fce2d3" stroke-width="2.5" stroke-linecap="round" x1="41.5" y1="100" x2="41.5" y2="130" />
+                                    <line stroke="#fce2d3" stroke-width="2.5" stroke-linecap="round" x1="62.5" y1="100" x2="62.5" y2="135" />
+                                    <line stroke="#fce2d3" stroke-width="2.5" stroke-linecap="round" x1="83.5" y1="100" x2="83.5" y2="130" />
+                                </g>
+                            </defs>
+
+                            <g id="left-hand" transform="translate(280, 0) scale(-1, 1)">
+                                <use href="#base-hand-shape" />
+                                
+                                <path id="svg-lp" class="highlight-zone" d="M 84,100 L 84,65 A 10,10 0 0,1 104,65 L 104,100 Z" />
+                                <path id="svg-lr" class="highlight-zone" d="M 63,100 L 63,30 A 10,10 0 0,1 83,30 L 83,100 Z" />
+                                <path id="svg-lm" class="highlight-zone" d="M 42,100 L 42,20 A 10,10 0 0,1 62,20 L 62,100 Z" />
+                                <path id="svg-li" class="highlight-zone" d="M 21,100 L 21,35 A 10,10 0 0,1 41,35 L 41,100 Z" />
+                                <path id="svg-lt" class="highlight-zone" d="M -5,130 L -18,118 A 10,10 0 0,1 -8,98 L 8,112 Q 21,123 21,100 L 21,140 Q 21,135 -5,130 Z" />
+
+                                <use href="#nail-shape" x="94" y="64" />
+                                <use href="#nail-shape" x="73" y="29" />
+                                <use href="#nail-shape" x="52" y="19" />
+                                <use href="#nail-shape" x="31" y="34" />
+                                <g transform="translate(-13, 108) rotate(-50)">
+                                    <use href="#nail-shape" x="0" y="0" />
+                                </g>
+                            </g>
+
+                            <g id="right-hand" transform="translate(380, 0)">
+                                <use href="#base-hand-shape" />
+                                
+                                <path id="svg-rp" class="highlight-zone" d="M 84,100 L 84,65 A 10,10 0 0,1 104,65 L 104,100 Z" />
+                                <path id="svg-rr" class="highlight-zone" d="M 63,100 L 63,30 A 10,10 0 0,1 83,30 L 83,100 Z" />
+                                <path id="svg-rm" class="highlight-zone" d="M 42,100 L 42,20 A 10,10 0 0,1 62,20 L 62,100 Z" />
+                                <path id="svg-ri" class="highlight-zone" d="M 21,100 L 21,35 A 10,10 0 0,1 41,35 L 41,100 Z" />
+                                <path id="svg-rt" class="highlight-zone" d="M -5,130 L -18,118 A 10,10 0 0,1 -8,98 L 8,112 Q 21,123 21,100 L 21,140 Q 21,135 -5,130 Z" />
+
+                                <use href="#nail-shape" x="94" y="64" />
+                                <use href="#nail-shape" x="73" y="29" />
+                                <use href="#nail-shape" x="52" y="19" />
+                                <use href="#nail-shape" x="31" y="34" />
+                                <g transform="translate(-13, 108) rotate(-50)">
+                                    <use href="#nail-shape" x="0" y="0" />
+                                </g>
+                            </g>
+
+                        </svg>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<div id="completion-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h2>🎉 练习完成！</h2>
+        <div id="modal-stats" class="modal-stats"></div>
+        <div id="completion-record-status" class="record-save-status"></div>
+        <button id="close-modal-btn" class="modal-btn" tabindex="-1">确认</button>
+    </div>
+</div>
+
+<div id="records-modal" class="modal-overlay">
+    <div class="modal-content records-modal-content">
+        <h2 id="records-modal-title">历史记录</h2>
+        <div id="records-content" class="records-content"></div>
+        <div class="records-close-row">
+            <button id="close-records-modal-btn" class="modal-btn" tabindex="-1">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const RECORD_FILE_NAME = '酷爱打字通记录.json';
+    const LOCAL_RECORD_KEY = 'cool-typing-practice-records-v1';
+    const DB_NAME = 'cool-typing-practice-db';
+    const DB_STORE = 'handles';
+    const DIRECTORY_HANDLE_KEY = 'work-directory';
+
+    const fileUpload = document.getElementById('file-upload');
+    const folderUpload = document.getElementById('folder-upload');
+    const folderPickerBtn = document.getElementById('folder-picker-btn');
+    const refreshFolderBtn = document.getElementById('refresh-folder-btn');
+    const readRecordsBtn = document.getElementById('read-records-btn');
+    const container = document.getElementById('typing-container');
+    const combinedStatsDisplay = document.getElementById('combined-stats-display');
+    const resetBtn = document.getElementById('reset-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const pauseOverlay = document.getElementById('pause-overlay');
+    const fileList = document.getElementById('file-list');
+    const fileCount = document.getElementById('file-count');
+    const folderStatus = document.getElementById('folder-status');
+    const completionModal = document.getElementById('completion-modal');
+    const completionRecordStatus = document.getElementById('completion-record-status');
+    const recordsModal = document.getElementById('records-modal');
+    const recordsModalTitle = document.getElementById('records-modal-title');
+    const recordsContent = document.getElementById('records-content');
+    const closingBracketFilterBtn = document.getElementById('closing-bracket-filter-btn');
+    const fogModeBtn = document.getElementById('fog-mode-btn');
+    const keyboardToggleBtn = document.getElementById('keyboard-toggle-btn');
+    const keyboardPanel = document.getElementById('keyboard-panel');
+    const keyboardLayout = document.getElementById('keyboard-layout');
+    const fingerGuide = document.getElementById('finger-guide');
+    const keyboardHint = document.getElementById('keyboard-hint');
+
+    const FINGER_LABELS = {
+        lp: '左小指',
+        lr: '左无名指',
+        lm: '左中指',
+        li: '左食指',
+        lt: '左拇指',
+        rt: '右拇指',
+        ri: '右食指',
+        rm: '右中指',
+        rr: '右无名指',
+        rp: '右小指'
+    };
+
+    const FINGER_ORDER = ['lp', 'lr', 'lm', 'li', 'lt', 'divider', 'rt', 'ri', 'rm', 'rr', 'rp'];
+
+    const KEYBOARD_ROWS = [
+        [
+            ['Backquote', '`', '~'], ['Digit1', '1', '!'], ['Digit2', '2', '@'],
+            ['Digit3', '3', '#'], ['Digit4', '4', '$'], ['Digit5', '5', '%'],
+            ['Digit6', '6', '^'], ['Digit7', '7', '&'], ['Digit8', '8', '*'],
+            ['Digit9', '9', '('], ['Digit0', '0', ')'], ['Minus', '-', '_'],
+            ['Equal', '=', '+'], ['Backspace', 'Backspace', '', 'key-wider']
+        ],
+        [
+            ['Tab', 'Tab', '', 'key-wide'], ['KeyQ', 'Q'], ['KeyW', 'W'], ['KeyE', 'E'],
+            ['KeyR', 'R'], ['KeyT', 'T'], ['KeyY', 'Y'], ['KeyU', 'U'], ['KeyI', 'I'],
+            ['KeyO', 'O'], ['KeyP', 'P'], ['BracketLeft', '[', '{'],
+            ['BracketRight', ']', '}'], ['Backslash', '\\', '|', 'key-wide']
+        ],
+        [
+            ['CapsLock', 'Caps', '', 'key-wider'], ['KeyA', 'A'], ['KeyS', 'S'], ['KeyD', 'D'],
+            ['KeyF', 'F'], ['KeyG', 'G'], ['KeyH', 'H'], ['KeyJ', 'J'], ['KeyK', 'K'],
+            ['KeyL', 'L'], ['Semicolon', ';', ':'], ['Quote', "'", '"'],
+            ['Enter', 'Enter', '', 'key-wider']
+        ],
+        [
+            ['ShiftLeft', 'Shift', '', 'key-wider'], ['KeyZ', 'Z'], ['KeyX', 'X'], ['KeyC', 'C'],
+            ['KeyV', 'V'], ['KeyB', 'B'], ['KeyN', 'N'], ['KeyM', 'M'],
+            ['Comma', ',', '<'], ['Period', '.', '>'], ['Slash', '/', '?'],
+            ['ShiftRight', 'Shift', '', 'key-wider']
+        ],
+        [
+            ['ControlLeft', 'Ctrl', '', 'key-wide'], ['AltLeft', 'Alt', '', 'key-wide'],
+            ['Space', 'Space', '', 'key-space'], ['AltRight', 'Alt', '', 'key-wide'],
+            ['ControlRight', 'Ctrl', '', 'key-wide']
+        ]
+    ];
+
+    const FINGER_BY_CODE = {
+        Backquote: ['lp'], Digit1: ['lp'], KeyQ: ['lp'], KeyA: ['lp'], KeyZ: ['lp'],
+        Tab: ['lp'], CapsLock: ['lp'], ShiftLeft: ['lp'], ControlLeft: ['lp'],
+        Digit2: ['lr'], KeyW: ['lr'], KeyS: ['lr'], KeyX: ['lr'],
+        Digit3: ['lm'], KeyE: ['lm'], KeyD: ['lm'], KeyC: ['lm'],
+        Digit4: ['li'], Digit5: ['li'], KeyR: ['li'], KeyT: ['li'],
+        KeyF: ['li'], KeyG: ['li'], KeyV: ['li'], KeyB: ['li'],
+        Space: ['lt', 'rt'],
+        Digit6: ['ri'], Digit7: ['ri'], KeyY: ['ri'], KeyU: ['ri'],
+        KeyH: ['ri'], KeyJ: ['ri'], KeyN: ['ri'], KeyM: ['ri'],
+        Digit8: ['rm'], KeyI: ['rm'], KeyK: ['rm'], Comma: ['rm'],
+        Digit9: ['rr'], KeyO: ['rr'], KeyL: ['rr'], Period: ['rr'],
+        Digit0: ['rp'], Minus: ['rp'], Equal: ['rp'], KeyP: ['rp'],
+        BracketLeft: ['rp'], BracketRight: ['rp'], Backslash: ['rp'],
+        Semicolon: ['rp'], Quote: ['rp'], Slash: ['rp'], Enter: ['rp'],
+        Backspace: ['rp'], ShiftRight: ['rp'], ControlRight: ['rp'],
+        AltLeft: ['lt'], AltRight: ['rt']
+    };
+
+    const CHAR_TO_CODE = {
+        '`': 'Backquote', '~': 'Backquote',
+        '1': 'Digit1', '!': 'Digit1', '2': 'Digit2', '@': 'Digit2',
+        '3': 'Digit3', '#': 'Digit3', '4': 'Digit4', '$': 'Digit4',
+        '5': 'Digit5', '%': 'Digit5', '6': 'Digit6', '^': 'Digit6',
+        '7': 'Digit7', '&': 'Digit7', '8': 'Digit8', '*': 'Digit8',
+        '9': 'Digit9', '(': 'Digit9', '0': 'Digit0', ')': 'Digit0',
+        '-': 'Minus', '_': 'Minus', '=': 'Equal', '+': 'Equal',
+        '[': 'BracketLeft', '{': 'BracketLeft', ']': 'BracketRight', '}': 'BracketRight',
+        '\\': 'Backslash', '|': 'Backslash', ';': 'Semicolon', ':': 'Semicolon',
+        "'": 'Quote', '"': 'Quote', ',': 'Comma', '<': 'Comma',
+        '.': 'Period', '>': 'Period', '/': 'Slash', '?': 'Slash',
+        ' ': 'Space', '\n': 'Enter', '\t': 'Tab'
+    };
+
+    const SHIFT_CHARACTERS = new Set(
+        '~!@#$%^&*()_+{}|:"<>?ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
+    );
+
+    let keyboardPressedTimer = null;
+
+    function renderFingerGuide() {
+        fingerGuide.innerHTML = '';
+        for (const fingerId of FINGER_ORDER) {
+            if (fingerId === 'divider') {
+                const divider = document.createElement('span');
+                divider.className = 'finger-divider';
+                fingerGuide.appendChild(divider);
+                continue;
+            }
+
+            const finger = document.createElement('span');
+            finger.className = 'finger-item';
+            finger.dataset.finger = fingerId;
+            finger.textContent = FINGER_LABELS[fingerId];
+            fingerGuide.appendChild(finger);
+        }
+    }
+
+    function renderKeyboard() {
+        keyboardLayout.innerHTML = '';
+        for (const rowData of KEYBOARD_ROWS) {
+            const row = document.createElement('div');
+            row.className = 'keyboard-row';
+
+            for (const [code, mainLabel, shiftLabel = '', sizeClass = ''] of rowData) {
+                const key = document.createElement('span');
+                key.className = `keycap${sizeClass ? ` ${sizeClass}` : ''}`;
+                key.dataset.code = code;
+
+                const main = document.createElement('span');
+                main.className = 'key-main';
+                main.textContent = mainLabel;
+                key.appendChild(main);
+
+                if (shiftLabel) {
+                    const shifted = document.createElement('span');
+                    shifted.className = 'key-shift';
+                    shifted.textContent = shiftLabel;
+                    key.appendChild(shifted);
+                }
+
+                row.appendChild(key);
+            }
+
+            keyboardLayout.appendChild(row);
+        }
+    }
+
+    function getCharacterCode(char) {
+        if (Object.prototype.hasOwnProperty.call(CHAR_TO_CODE, char)) {
+            return CHAR_TO_CODE[char];
+        }
+
+        if (/^[a-zA-Z]$/.test(char)) {
+            return `Key${char.toUpperCase()}`;
+        }
+
+        return '';
+    }
+
+    function getExpectedKeyInfo(char) {
+        const code = getCharacterCode(char);
+        if (!code) return null;
+
+        const fingers = [...(FINGER_BY_CODE[code] || [])];
+        const extraCodes = [];
+        const needsShift = SHIFT_CHARACTERS.has(char);
+
+        if (needsShift) {
+            const mainFinger = fingers[0] || '';
+            const shiftCode = mainFinger.startsWith('l') ? 'ShiftRight' : 'ShiftLeft';
+            extraCodes.push(shiftCode);
+            for (const finger of FINGER_BY_CODE[shiftCode] || []) {
+                if (!fingers.includes(finger)) fingers.push(finger);
+            }
+        }
+
+        return { code, extraCodes, fingers, needsShift };
+    }
+
+    function clearKeyboardClass(className) {
+        keyboardLayout.querySelectorAll(`.${className}`).forEach(element => {
+            element.classList.remove(className);
+        });
+        fingerGuide.querySelectorAll(`.${className}`).forEach(element => {
+            element.classList.remove(className);
+        });
+        
+        if (className === 'expected') {
+            document.querySelectorAll(`#hand-model-svg .highlight-zone.${className}`).forEach(element => {
+                element.classList.remove(className);
+            });
+        }
+    }
+
+    function highlightKeyCode(code, className) {
+        if (!code) return;
+        const key = keyboardLayout.querySelector(`[data-code="${code}"]`);
+        if (key) key.classList.add(className);
+    }
+
+    function highlightFingers(fingerIds, className) {
+        for (const fingerId of fingerIds || []) {
+            const finger = fingerGuide.querySelector(`[data-finger="${fingerId}"]`);
+            if (finger) finger.classList.add(className);
+            
+            if (className === 'expected') {
+                const svgFinger = document.getElementById(`svg-${fingerId}`);
+                if (svgFinger) {
+                    svgFinger.classList.add(className);
+                }
+            }
+        }
+    }
+
+    function formatExpectedCharacter(char) {
+        if (char === '\n') return 'Enter';
+        if (char === '\t') return 'Tab';
+        if (char === ' ') return '空格';
+        return char;
+    }
+
+    function updateKeyboardGuide() {
+        clearKeyboardClass('expected');
+
+        if (currentTokenIndex >= tokens.length) {
+            keyboardHint.textContent = tokens.length > 0 ? '本次练习已完成' : '当前没有可练习内容';
+            return;
+        }
+
+        const token = tokens[currentTokenIndex];
+        const info = getExpectedKeyInfo(token.char);
+        if (!info) {
+            keyboardHint.textContent = `目标字符：${formatExpectedCharacter(token.char)}`;
+            return;
+        }
+
+        highlightKeyCode(info.code, 'expected');
+        for (const code of info.extraCodes) highlightKeyCode(code, 'expected');
+        highlightFingers(info.fingers, 'expected');
+
+        const fingerText = info.fingers.map(id => FINGER_LABELS[id]).join(' + ');
+        const keyText = info.needsShift
+            ? `Shift + ${formatExpectedCharacter(token.char)}`
+            : formatExpectedCharacter(token.char);
+        keyboardHint.textContent = `目标键：${keyText}${fingerText ? ` 手指：${fingerText}` : ''}`;
+    }
+
+    function flashPressedKeyboard(code) {
+        if (!code || keyboardPanel.classList.contains('is-hidden')) return;
+
+        clearKeyboardClass('pressed');
+        highlightKeyCode(code, 'pressed');
+        highlightFingers(FINGER_BY_CODE[code] || [], 'pressed');
+
+        if (keyboardPressedTimer) clearTimeout(keyboardPressedTimer);
+        keyboardPressedTimer = setTimeout(() => {
+            clearKeyboardClass('pressed');
+            keyboardPressedTimer = null;
+        }, 180);
+    }
+
+    keyboardToggleBtn.addEventListener('click', event => {
+        event.target.blur();
+        const isHidden = keyboardPanel.classList.toggle('is-hidden');
+        keyboardToggleBtn.textContent = isHidden ? '显示键盘' : '隐藏键盘';
+    });
+
+    window.addEventListener('keydown', event => {
+        flashPressedKeyboard(event.code);
+    }, true);
+
+    function isPageControl(element) {
+        return element instanceof Element && Boolean(element.closest('button, label[for], input[type="file"]'));
+    }
+
+    document.addEventListener('focusin', event => {
+        if (isPageControl(event.target) && typeof event.target.blur === 'function') {
+            event.target.blur();
+        }
+    });
+
+    document.addEventListener('mousedown', event => {
+        if (isPageControl(event.target)) event.preventDefault();
+    }, true);
+
+    window.addEventListener('keydown', event => {
+        if (!isPageControl(event.target)) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (typeof event.target.blur === 'function') event.target.blur();
+        }
+    }, true);
+
+    const defaultText = `#include<iostream>
+using namespace std;
+int main(){
+    // 这是一条不需要输入的注释
+    cout<<"I Love C++."<<endl; /* 块注释也会自动跳过 */
+    return 0;
+}`;
+
+    let lines = [];
+    let tokens = [];
+    let currentTokenIndex = 0;
+    let isPracticeActive = false;
+    let isPaused = false;
+    let completionHandled = false;
+    let filterClosingBracketsEnabled = false;
+    let isFogModeEnabled = false;
+
+    const AUTO_FILL_CLOSING_BRACKETS = new Set([')', ']', '}']);
+
+    let startTime = null;
+    let timerInterval = null;
+    let pauseStartedAt = null;
+    let totalPausedMs = 0;
+    let totalTypedChars = 0;
+    let totalTypos = 0;
+
+    let fileEntries = [];
+    let activeFileId = null;
+    let fileSequence = 0;
+    let currentDirectoryHandle = null;
+    let currentDirectoryName = '';
+    let lastCompletedRecord = null;
+
+    function createFileId() {
+        fileSequence += 1;
+        return `file-${Date.now()}-${fileSequence}`;
+    }
+
+    function getExtension(name) {
+        const dotIndex = name.lastIndexOf('.');
+        return dotIndex === -1 ? '' : name.slice(dotIndex).toLowerCase();
+    }
+
+    function isSupportedFile(name) {
+        const ext = getExtension(name);
+        return ext === '.cpp' || ext === '.txt';
+    }
+
+    function normalizeName(name) {
+        return String(name || '').trim().toLocaleLowerCase('zh-CN');
+    }
+
+    function readFileAsText(file) {
+        if (typeof file.text === 'function') return file.text();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = event => resolve(event.target.result);
+            reader.onerror = () => reject(reader.error || new Error(`无法读取文件：${file.name}`));
+            reader.readAsText(file);
+        });
+    }
+
+    function makeFileEntry({ name, path, text }) {
+        return {
+            id: createFileId(),
+            name,
+            path: path || name,
+            text,
+            isCpp: name.toLowerCase().endsWith('.cpp')
+        };
+    }
+
+    function deduplicateFileCandidates(candidates) {
+        const sorted = [...candidates].sort((a, b) => {
+            const depthA = String(a.path || a.name).split('/').length;
+            const depthB = String(b.path || b.name).split('/').length;
+            if (depthA !== depthB) return depthA - depthB;
+            return String(a.path || a.name).localeCompare(String(b.path || b.name), 'zh-CN', { numeric: true });
+        });
+
+        const seen = new Set();
+        const unique = [];
+        const duplicates = [];
+
+        for (const candidate of sorted) {
+            const key = normalizeName(candidate.name);
+            if (seen.has(key)) {
+                duplicates.push(candidate);
+                continue;
+            }
+            seen.add(key);
+            unique.push(candidate);
+        }
+
+        unique.sort((a, b) => String(a.path || a.name).localeCompare(String(b.path || b.name), 'zh-CN', { numeric: true }));
+        return { unique, duplicates };
+    }
+
+    function renderFileList() {
+        fileList.innerHTML = '';
+        fileCount.textContent = String(fileEntries.length);
+
+        if (fileEntries.length === 0) {
+            const empty = document.createElement('li');
+            empty.className = 'empty-files';
+            empty.textContent = '暂无文件。请选择 HTML 所在文件夹，或读取单文件。';
+            fileList.appendChild(empty);
+            return;
+        }
+
+        fileEntries.forEach((entry, index) => {
+            const item = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.tabIndex = -1;
+            button.className = `file-item${entry.id === activeFileId ? ' active' : ''}`;
+            button.title = entry.path;
+            button.dataset.fileId = entry.id;
+
+            const info = document.createElement('span');
+            info.className = 'file-info';
+
+            const name = document.createElement('span');
+            name.className = 'file-name';
+            name.textContent = `${index + 1}. ${entry.name}`;
+            info.appendChild(name);
+
+            if (entry.path !== entry.name) {
+                const path = document.createElement('span');
+                path.className = 'file-path';
+                path.textContent = entry.path;
+                info.appendChild(path);
+            }
+
+            button.appendChild(info);
+            button.addEventListener('click', () => selectFile(entry.id));
+            item.appendChild(button);
+            fileList.appendChild(item);
+        });
+    }
+
+    function selectFile(fileId) {
+        const entry = fileEntries.find(item => item.id === fileId);
+        if (!entry) return;
+
+        activeFileId = entry.id;
+        completionModal.style.display = 'none';
+        lastCompletedRecord = null;
+        processText(entry.text, entry.isCpp);
+        renderFileList();
+    }
+
+    function replaceFileEntries(entries) {
+        fileEntries = entries;
+        activeFileId = null;
+        renderFileList();
+
+        if (fileEntries.length > 0) {
+            selectFile(fileEntries[0].id);
+        }
+    }
+
+    function addOrReplaceSingleEntry(entry) {
+        const existingIndex = fileEntries.findIndex(item => normalizeName(item.name) === normalizeName(entry.name));
+        if (existingIndex >= 0) {
+            entry.id = fileEntries[existingIndex].id;
+            fileEntries.splice(existingIndex, 1, entry);
+            folderStatus.textContent = `检测到同名文件，已替换：${entry.name}`;
+        } else {
+            fileEntries.push(entry);
+            fileEntries.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }));
+        }
+        selectFile(entry.id);
+    }
+
+    function parseText(text, isCpp) {
+        const normalizedLineEndings = String(text || '').replace(/\r\n?/g, '\n');
+        const normalized = normalizedLineEndings.replace(/[ \t\n]+$/g, '');
+        const parsedTokens = [];
+        let lineIndex = 0;
+        let columnIndex = 0;
+        let state = 'normal';
+        let escaped = false;
+
+        function pushToken(char, isComment) {
+            if (lineIndex >= 999) return; 
+            
+            parsedTokens.push({
+                char,
+                line: lineIndex,
+                column: columnIndex,
+                isComment: Boolean(isComment),
+                isAutoSkip: false,
+                isClosingBracketAutoFill: false,
+                isSyntheticNewline: false,
+                typed: false,
+                result: '',
+                element: null,
+                index: parsedTokens.length
+            });
+            if (char === '\n') {
+                lineIndex += 1;
+                columnIndex = 0;
+            } else {
+                columnIndex += 1;
+            }
+        }
+
+        for (let i = 0; i < normalized.length; i++) {
+            if (lineIndex >= 999) break; 
+            
+            const char = normalized[i];
+            const next = normalized[i + 1] || '';
+
+            if (!isCpp) {
+                pushToken(char, false);
+                continue;
+            }
+
+            if (state === 'line-comment') {
+                pushToken(char, true);
+                if (char === '\n') state = 'normal';
+                continue;
+            }
+
+            if (state === 'block-comment') {
+                pushToken(char, true);
+                if (char === '*' && next === '/') {
+                    i += 1;
+                    pushToken('/', true);
+                    state = 'normal';
+                }
+                continue;
+            }
+
+            if (state === 'string') {
+                pushToken(char, false);
+                if (escaped) {
+                    escaped = false;
+                } else if (char === '\\') {
+                    escaped = true;
+                } else if (char === '"') {
+                    state = 'normal';
+                }
+                continue;
+            }
+
+            if (state === 'character') {
+                pushToken(char, false);
+                if (escaped) {
+                    escaped = false;
+                } else if (char === '\\') {
+                    escaped = true;
+                } else if (char === "'") {
+                    state = 'normal';
+                }
+                continue;
+            }
+
+            if (char === '/' && next === '/') {
+                pushToken('/', true);
+                i += 1;
+                pushToken('/', true);
+                state = 'line-comment';
+                continue;
+            }
+
+            if (char === '/' && next === '*') {
+                pushToken('/', true);
+                i += 1;
+                pushToken('*', true);
+                state = 'block-comment';
+                continue;
+            }
+
+            if (char === '"') {
+                pushToken(char, false);
+                state = 'string';
+                escaped = false;
+                continue;
+            }
+
+            if (char === "'") {
+                pushToken(char, false);
+                state = 'character';
+                escaped = false;
+                continue;
+            }
+
+            pushToken(char, false);
+        }
+
+        const tokenLines = [];
+        for (const token of parsedTokens) {
+            if (!tokenLines[token.line]) tokenLines[token.line] = [];
+            tokenLines[token.line].push(token);
+        }
+
+        for (const lineTokens of tokenLines) {
+            if (!lineTokens) continue;
+
+            let reachedContent = false;
+            for (const token of lineTokens) {
+                if (token.char === '\n') break;
+                if (!reachedContent && (token.char === ' ' || token.char === '\t')) {
+                    token.isAutoSkip = true;
+                } else {
+                    reachedContent = true;
+                }
+            }
+
+            for (let i = 0; i < lineTokens.length; i++) {
+                const token = lineTokens[i];
+                const previous = i > 0 ? lineTokens[i - 1] : null;
+                const isCommentStart = token.isComment && (!previous || !previous.isComment);
+                if (!isCommentStart) continue;
+
+                for (let j = i - 1; j >= 0; j--) {
+                    const whitespace = lineTokens[j];
+                    if (whitespace.char === ' ' || whitespace.char === '\t') {
+                        whitespace.isAutoSkip = true;
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            const newlineToken = lineTokens.find(token => token.char === '\n' && !token.isSyntheticNewline);
+            let lastMeaningfulIndex = -1;
+            for (let i = lineTokens.length - 1; i >= 0; i--) {
+                const token = lineTokens[i];
+                if (token.char === '\n' || token.char === ' ' || token.char === '\t') continue;
+                lastMeaningfulIndex = i;
+                break;
+            }
+
+            if (lastMeaningfulIndex >= 0 && lineTokens[lastMeaningfulIndex].isComment) {
+                if (newlineToken) {
+                    for (let i = lastMeaningfulIndex + 1; i < lineTokens.length; i++) {
+                        lineTokens[i].isComment = true;
+                        lineTokens[i].isAutoSkip = false;
+                    }
+                    newlineToken.isComment = true;
+                }
+
+                let trailingCommentStart = lastMeaningfulIndex;
+                while (trailingCommentStart > 0) {
+                    const previous = lineTokens[trailingCommentStart - 1];
+                    const isWhitespace = previous.char === ' ' || previous.char === '\t';
+                    if (!previous.isComment && !isWhitespace) break;
+                    trailingCommentStart -= 1;
+                }
+
+                const codeEndIndex = trailingCommentStart - 1;
+                if (codeEndIndex >= 0) {
+                    if (newlineToken) {
+                        const newlineIndex = lineTokens.indexOf(newlineToken);
+                        if (newlineIndex >= 0) lineTokens.splice(newlineIndex, 1);
+                    }
+
+                    const codeEndToken = lineTokens[codeEndIndex];
+                    const syntheticNewline = {
+                        char: '\n',
+                        line: codeEndToken.line,
+                        column: codeEndToken.column + 1,
+                        isComment: false,
+                        isAutoSkip: false,
+                        isClosingBracketAutoFill: false,
+                        isSyntheticNewline: true,
+                        typed: false,
+                        result: '',
+                        element: null,
+                        index: -1
+                    };
+                    lineTokens.splice(codeEndIndex + 1, 0, syntheticNewline);
+                }
+            }
+        }
+
+        parsedTokens.length = 0;
+        for (const lineTokens of tokenLines) {
+            if (!lineTokens) continue;
+            for (const token of lineTokens) {
+                token.index = parsedTokens.length;
+                parsedTokens.push(token);
+            }
+        }
+
+        return { parsedTokens, tokenLines };
+    }
+
+    function applyClosingBracketFilter() {
+        for (const token of tokens) {
+            token.isClosingBracketAutoFill = filterClosingBracketsEnabled
+                && AUTO_FILL_CLOSING_BRACKETS.has(token.char)
+                && !token.isComment;
+        }
+
+        closingBracketFilterBtn.classList.toggle('is-active', filterClosingBracketsEnabled);
+        closingBracketFilterBtn.textContent = filterClosingBracketsEnabled
+            ? '取消过滤'
+            : '跳右括号';
+        closingBracketFilterBtn.title = filterClosingBracketsEnabled
+            ? '已自动填充 )、]、}；点击取消过滤并重新开始'
+            : '自动填充 )、]、}，且不计入输入字符数';
+    }
+
+    function processText(text, isCpp) {
+        const parsed = parseText(text, isCpp);
+        tokens = parsed.parsedTokens;
+        lines = parsed.tokenLines;
+        applyClosingBracketFilter();
+        initPractice();
+    }
+
+    function renderPractice() {
+        container.innerHTML = '';
+        if (tokens.length === 0) {
+            container.innerHTML = '<div class="empty-files">当前文件没有可练习内容。</div>';
+            return;
+        }
+
+        const maxLine = tokens.reduce((max, token) => Math.max(max, token.line), 0);
+        for (let lineIndex = 0; lineIndex <= maxLine; lineIndex++) {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'line';
+            lineDiv.id = `line-${lineIndex}`;
+            const lineTokens = lines[lineIndex] || [];
+
+            for (const token of lineTokens) {
+                const span = document.createElement('span');
+                span.textContent = token.char === '\n' ? '↵' : token.char;
+                span.className = 'char';
+                span.id = `token-${token.index}`;
+                if (token.isComment) span.classList.add('comment-skip');
+                if (token.isClosingBracketAutoFill) span.classList.add('auto-skip');
+                token.element = span;
+                lineDiv.appendChild(span);
+            }
+            container.appendChild(lineDiv);
+        }
+    }
+
+    function isSkippedToken(token) {
+        return token && (token.isComment || token.isAutoSkip || token.isClosingBracketAutoFill);
+    }
+
+    function applySkippedStyle(token) {
+        if (!token || !token.element) return;
+        token.element.className = 'char';
+        token.element.classList.add(token.isComment ? 'comment-skip' : 'auto-skip');
+    }
+
+    function advancePastSkippedTokens() {
+        while (currentTokenIndex < tokens.length && isSkippedToken(tokens[currentTokenIndex])) {
+            applySkippedStyle(tokens[currentTokenIndex]);
+            currentTokenIndex += 1;
+        }
+    }
+
+    function initPractice() {
+        currentTokenIndex = 0;
+        isPracticeActive = tokens.length > 0;
+        completionHandled = false;
+        lastCompletedRecord = null;
+
+        for (const token of tokens) {
+            token.typed = false;
+            token.result = '';
+        }
+
+        resetTimer();
+        renderPractice();
+        updateCursor();
+        updateStats();
+        window.focus();
+    }
+
+    function setPaused(paused) {
+        if (paused === isPaused) return;
+        isPaused = paused;
+
+        if (isPaused) {
+            pauseStartedAt = startTime ? Date.now() : null;
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            pauseBtn.textContent = '继续练习';
+            pauseBtn.classList.add('is-paused');
+            container.classList.add('paused');
+            pauseOverlay.classList.add('visible');
+        } else {
+            if (pauseStartedAt !== null) {
+                totalPausedMs += Date.now() - pauseStartedAt;
+                pauseStartedAt = null;
+            }
+            pauseBtn.textContent = '暂停练习';
+            pauseBtn.classList.remove('is-paused');
+            container.classList.remove('paused');
+            pauseOverlay.classList.remove('visible');
+
+            if (startTime && isPracticeActive) {
+                timerInterval = setInterval(updateStats, 1000);
+            }
+        }
+        updateStats();
+    }
+
+    function formatTime(ms) {
+        if (!ms || ms < 0) return '00:00';
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function getElapsedMs() {
+        if (!startTime) return 0;
+        const endTime = isPaused && pauseStartedAt !== null ? pauseStartedAt : Date.now();
+        return Math.max(0, endTime - startTime - totalPausedMs);
+    }
+
+    function resetTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = null;
+        startTime = null;
+        pauseStartedAt = null;
+        totalPausedMs = 0;
+        totalTypedChars = 0;
+        totalTypos = 0;
+        isPaused = false;
+
+        pauseBtn.textContent = '暂停练习';
+        pauseBtn.classList.remove('is-paused');
+        pauseBtn.disabled = tokens.length === 0;
+        container.classList.remove('paused');
+        pauseOverlay.classList.remove('visible');
+
+        combinedStatsDisplay.innerHTML =
+            `<span class="stat-time">时间: 00:00</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-speed">速度: 0 字符/分钟</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-error">输错率: 0.00%</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-typed">输入 0 字符</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-accuracy">正确率: 100.00%</span>`;
+    }
+
+    function getResultCounts() {
+        let correctCount = 0;
+        let incorrectCount = 0;
+        let requiredChars = 0;
+        for (const token of tokens) {
+            if (!isSkippedToken(token) && token.char !== '\t') requiredChars += 1;
+            if (token.result === 'correct') correctCount += 1;
+            if (token.result === 'incorrect') incorrectCount += 1;
+        }
+        return { correctCount, incorrectCount, requiredChars };
+    }
+
+    function calculateResult() {
+        const elapsedMs = getElapsedMs();
+        const timeStr = formatTime(elapsedMs);
+        const elapsedMinutes = elapsedMs / 60000;
+        const cpm = elapsedMinutes > 0 ? Math.round(totalTypedChars / elapsedMinutes) : 0;
+        const errorRate = totalTypedChars > 0
+            ? ((totalTypos / totalTypedChars) * 100).toFixed(2)
+            : '0.00';
+        const counts = getResultCounts();
+        const currentTotal = counts.correctCount + counts.incorrectCount;
+        const accuracy = currentTotal > 0
+            ? ((counts.correctCount / currentTotal) * 100).toFixed(2)
+            : '100.00';
+
+        return {
+            elapsedMs,
+            timeStr,
+            cpm,
+            errorRate,
+            accuracy,
+            totalArticleChars: totalTypedChars,
+            totalTypedChars,
+            totalTypos
+        };
+    }
+
+    function updateStats() {
+        const result = calculateResult();
+        combinedStatsDisplay.innerHTML =
+            `<span class="stat-time">时间: ${result.timeStr}</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-speed">速度: ${result.cpm} 字符/分钟</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-error">输错率: ${result.errorRate}%</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-typed">输入 ${result.totalTypedChars} 字符</span>` +
+            `<span class="stat-divider">&nbsp;|&nbsp;</span>` +
+            `<span class="stat-accuracy">正确率: ${result.accuracy}%</span>`;
+    }
+
+    function createCompletionRecord(result) {
+        const entry = fileEntries.find(item => item.id === activeFileId);
+        const completedAt = new Date();
+        return {
+            id: `${completedAt.getTime()}-${Math.random().toString(36).slice(2, 9)}`,
+            fileName: entry ? entry.name : '未知文件',
+            relativePath: entry ? entry.path : '未知文件',
+            completedAt: completedAt.toISOString(),
+            timeMs: result.elapsedMs,
+            timeText: result.timeStr,
+            speedCpm: result.cpm,
+            errorRate: Number(result.errorRate),
+            accuracy: Number(result.accuracy),
+            requiredChars: result.totalArticleChars,
+            typedChars: result.totalTypedChars,
+            typos: result.totalTypos
+        };
+    }
+
+    function showCompletionModal(result) {
+        const modalStats = document.getElementById('modal-stats');
+        modalStats.innerHTML = `
+            <div><span class="stat-time"><strong>时间:</strong></span> <span>${result.timeStr}</span></div>
+            <div><span class="stat-speed"><strong>速度:</strong></span> <span>${result.cpm} 字符/分钟</span></div>
+            <div><span class="stat-error"><strong>输错率:</strong></span> <span>${result.errorRate}%</span></div>
+            <div><span class="stat-accuracy"><strong>正确率:</strong></span> <span>${result.accuracy}%</span></div>
+            <div><span class="stat-total"><strong>输入字符:</strong></span> <span>${result.totalTypedChars} 字符</span></div>
+        `;
+        completionRecordStatus.textContent = '正在保存完成记录……';
+        completionModal.style.display = 'flex';
+    }
+
+    async function finishPractice() {
+        if (completionHandled) return;
+        completionHandled = true;
+        isPracticeActive = false;
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = null;
+        pauseBtn.disabled = true;
+
+        const result = calculateResult();
+        lastCompletedRecord = createCompletionRecord(result);
+        showCompletionModal(result);
+
+        const saveResult = await saveRecord(lastCompletedRecord, false);
+        completionRecordStatus.textContent = saveResult.message;
+    }
+
+    function updateFogMode() {
+        if (!isFogModeEnabled) {
+            for (const token of tokens) {
+                if (token.element) token.element.classList.remove('fog-hidden');
+            }
+            return;
+        }
+
+        let typableCount = 0;
+        for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
+            if (!token.element) continue;
+
+            if (token.isComment) {
+                token.element.classList.remove('fog-hidden');
+            } else if (i < currentTokenIndex) {
+                token.element.classList.remove('fog-hidden');
+            } else {
+                if (isSkippedToken(token)) {
+                    if (typableCount < 2) {
+                        token.element.classList.remove('fog-hidden');
+                    } else {
+                        token.element.classList.add('fog-hidden');
+                    }
+                } else {
+                    if (typableCount < 2) {
+                        token.element.classList.remove('fog-hidden');
+                        typableCount++;
+                    } else {
+                        token.element.classList.add('fog-hidden');
+                    }
+                }
+            }
+        }
+    }
+
+    function updateCursor() {
+        container.querySelectorAll('.current').forEach(element => element.classList.remove('current'));
+        advancePastSkippedTokens();
+        updateKeyboardGuide();
+
+        if (currentTokenIndex >= tokens.length) {
+            updateFogMode();
+            void finishPractice();
+            return;
+        }
+
+        const token = tokens[currentTokenIndex];
+        if (token && token.element) {
+            token.element.classList.add('current');
+            token.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        updateFogMode();
+    }
+
+    function clearTokenResult(token) {
+        if (!token) return;
+        token.typed = false;
+        token.result = '';
+        if (token.element) token.element.className = 'char';
+        if (token.isComment) token.element.classList.add('comment-skip');
+        if (token.isAutoSkip || token.isClosingBracketAutoFill) token.element.classList.add('auto-skip');
+    }
+
+    function handleBackspace() {
+        let index = currentTokenIndex - 1;
+        while (index >= 0 && (!tokens[index].typed || isSkippedToken(tokens[index]))) index -= 1;
+        if (index < 0) return;
+        clearTokenResult(tokens[index]);
+        currentTokenIndex = index;
+        updateCursor();
+        updateStats();
+    }
+
+    function skipCurrentLine() {
+        while (currentTokenIndex < tokens.length) {
+            const token = tokens[currentTokenIndex];
+            token.isAutoSkip = true;
+            applySkippedStyle(token);
+            currentTokenIndex += 1;
+            if (token.char === '\n') break;
+        }
+        updateCursor();
+    }
+
+    fileUpload.addEventListener('change', async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        event.target.blur();
+
+        if (!isSupportedFile(file.name)) {
+            folderStatus.textContent = '仅支持 .cpp 和 .txt 文件。';
+            event.target.value = '';
+            return;
+        }
+
+        try {
+            const text = await readFileAsText(file);
+            addOrReplaceSingleEntry(makeFileEntry({ name: file.name, path: file.name, text }));
+            if (!folderStatus.textContent.includes('同名文件')) {
+                folderStatus.textContent = `已添加文件：${file.name}`;
+            }
+        } catch (error) {
+            folderStatus.textContent = error.message || '读取文件失败。';
+        } finally {
+            event.target.value = '';
+        }
+    });
+
+    closingBracketFilterBtn.addEventListener('click', event => {
+        event.target.blur();
+        filterClosingBracketsEnabled = !filterClosingBracketsEnabled;
+        applyClosingBracketFilter();
+        completionModal.style.display = 'none';
+        lastCompletedRecord = null;
+        if (tokens.length > 0) initPractice();
+    });
+
+    fogModeBtn.addEventListener('click', event => {
+        event.target.blur();
+        isFogModeEnabled = !isFogModeEnabled;
+        fogModeBtn.classList.toggle('is-active', isFogModeEnabled);
+        completionModal.style.display = 'none';
+        lastCompletedRecord = null;
+        if (tokens.length > 0) initPractice();
+    });
+
+    pauseBtn.addEventListener('click', event => {
+        event.target.blur();
+        if (!isPracticeActive || tokens.length === 0) return;
+        setPaused(!isPaused);
+    });
+
+    resetBtn.addEventListener('click', event => {
+        event.target.blur();
+        if (tokens.length > 0) {
+            completionModal.style.display = 'none';
+            initPractice();
+        }
+    });
+
+    window.addEventListener('keydown', event => {
+        if (!isPracticeActive || isPaused) return;
+        if (completionModal.style.display === 'flex' || recordsModal.style.display === 'flex') return;
+
+        if (event.key === ' ') event.preventDefault();
+        if (event.key === 'Tab') event.preventDefault();
+
+        if (event.key.length > 1 && event.key !== 'Backspace' && event.key !== 'Enter' && event.key !== 'Tab') return;
+        if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+        if (event.key === 'Backspace') {
+            event.preventDefault();
+            handleBackspace();
+            return;
+        }
+
+        if (!startTime) {
+            startTime = Date.now();
+            timerInterval = setInterval(updateStats, 1000);
+        }
+
+        const token = tokens[currentTokenIndex];
+        if (!token || isSkippedToken(token)) {
+            updateCursor();
+            return;
+        }
+
+        totalTypedChars += 1;
+        const isCorrect = token.char === '\n'
+            ? event.key === 'Enter'
+            : token.char === '\t'
+                ? event.key === 'Tab'
+                : event.key === token.char;
+        token.typed = true;
+        token.result = isCorrect ? 'correct' : 'incorrect';
+        token.element.className = `char ${token.result}`;
+        if (!isCorrect) totalTypos += 1;
+        currentTokenIndex += 1;
+
+        updateCursor();
+        updateStats();
+    });
+
+    function openHandleDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    async function saveDirectoryHandle(handle) {
+        try {
+            const db = await openHandleDatabase();
+            await new Promise((resolve, reject) => {
+                const transaction = db.transaction(DB_STORE, 'readwrite');
+                transaction.objectStore(DB_STORE).put(handle, DIRECTORY_HANDLE_KEY);
+                transaction.oncomplete = resolve;
+                transaction.onerror = () => reject(transaction.error);
+            });
+            db.close();
+        } catch (error) {
+        }
+    }
+
+    async function getSavedDirectoryHandle() {
+        try {
+            const db = await openHandleDatabase();
+            const result = await new Promise((resolve, reject) => {
+                const transaction = db.transaction(DB_STORE, 'readonly');
+                const request = transaction.objectStore(DB_STORE).get(DIRECTORY_HANDLE_KEY);
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error);
+            });
+            db.close();
+            return result;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    async function queryDirectoryPermission(handle, mode = 'readwrite') {
+        if (!handle || typeof handle.queryPermission !== 'function') return false;
+        try {
+            return await handle.queryPermission({ mode }) === 'granted';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function requestDirectoryPermission(handle, mode = 'readwrite') {
+        if (!handle) return false;
+        if (await queryDirectoryPermission(handle, mode)) return true;
+        if (typeof handle.requestPermission !== 'function') return false;
+        try {
+            return await handle.requestPermission({ mode }) === 'granted';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function collectDirectoryCandidates(directoryHandle, prefix = '') {
+        const results = [];
+        for await (const [name, handle] of directoryHandle.entries()) {
+            const relativePath = prefix ? `${prefix}/${name}` : name;
+            if (handle.kind === 'directory') {
+                const nested = await collectDirectoryCandidates(handle, relativePath);
+                results.push(...nested);
+            } else if (handle.kind === 'file' && isSupportedFile(name)) {
+                results.push({ name, path: relativePath, handle });
+            }
+        }
+        return results;
+    }
+
+    async function loadDirectoryFromHandle(directoryHandle, isAutomatic = false) {
+        folderStatus.textContent = isAutomatic ? '正在自动读取上次授权的工作文件夹……' : '正在读取工作文件夹……';
+        const candidates = await collectDirectoryCandidates(directoryHandle);
+        const { unique, duplicates } = deduplicateFileCandidates(candidates);
+
+        if (unique.length === 0) {
+            replaceFileEntries([]);
+            folderStatus.textContent = '文件夹内没有找到 .cpp 或 .txt 文件。';
+            return;
+        }
+
+        const entries = [];
+        for (const candidate of unique) {
+            const file = await candidate.handle.getFile();
+            const text = await readFileAsText(file);
+            entries.push(makeFileEntry({ name: candidate.name, path: candidate.path, text }));
+        }
+
+        replaceFileEntries(entries);
+        currentDirectoryHandle = directoryHandle;
+        currentDirectoryName = directoryHandle.name || '工作文件夹';
+        refreshFolderBtn.disabled = false;
+        const duplicateText = duplicates.length > 0 ? `；发现 ${duplicates.length} 个同名文件，已去重` : '';
+        folderStatus.textContent = `${isAutomatic ? '自动读取完成' : '读取完成'}：${currentDirectoryName}，共 ${entries.length} 个文件${duplicateText}。`;
+    }
+
+    async function chooseWorkingDirectory() {
+        if (typeof window.showDirectoryPicker !== 'function') {
+            folderUpload.click();
+            return;
+        }
+
+        try {
+            const handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'cool-typing-work-directory' });
+            const granted = await requestDirectoryPermission(handle, 'readwrite');
+            if (!granted) {
+                folderStatus.textContent = '未获得文件夹读写权限。';
+                return;
+            }
+            currentDirectoryHandle = handle;
+            currentDirectoryName = handle.name || '工作文件夹';
+            await saveDirectoryHandle(handle);
+            await loadDirectoryFromHandle(handle, false);
+        } catch (error) {
+            if (error && error.name !== 'AbortError') {
+                folderStatus.textContent = `读取文件夹失败：${error.message || error}`;
+            }
+        }
+    }
+
+    folderPickerBtn.addEventListener('click', chooseWorkingDirectory);
+
+    refreshFolderBtn.addEventListener('click', async () => {
+        if (!currentDirectoryHandle) {
+            await chooseWorkingDirectory();
+            return;
+        }
+        const granted = await requestDirectoryPermission(currentDirectoryHandle, 'readwrite');
+        if (!granted) {
+            folderStatus.textContent = '需要重新授权工作文件夹。';
+            return;
+        }
+        try {
+            await loadDirectoryFromHandle(currentDirectoryHandle, false);
+        } catch (error) {
+            folderStatus.textContent = `刷新失败：${error.message || error}`;
+        }
+    });
+
+    folderUpload.addEventListener('change', async event => {
+        const selectedFiles = Array.from(event.target.files || []);
+        const candidates = selectedFiles
+            .filter(file => isSupportedFile(file.name))
+            .map(file => ({
+                name: file.name,
+                path: file.webkitRelativePath || file.name,
+                file
+            }));
+        const { unique, duplicates } = deduplicateFileCandidates(candidates);
+
+        if (unique.length === 0) {
+            folderStatus.textContent = '所选文件夹中没有找到 .cpp 或 .txt 文件。';
+            event.target.value = '';
+            return;
+        }
+
+        try {
+            const entries = [];
+            for (const candidate of unique) {
+                const text = await readFileAsText(candidate.file);
+                entries.push(makeFileEntry({ name: candidate.name, path: candidate.path, text }));
+            }
+            replaceFileEntries(entries);
+            const duplicateText = duplicates.length > 0 ? `，已去除 ${duplicates.length} 个同名文件` : '';
+            folderStatus.textContent = `读取完成，共 ${entries.length} 个文件${duplicateText}。当前浏览器仅授予读取权限，记录将先保存到浏览器。`;
+        } catch (error) {
+            folderStatus.textContent = error.message || '读取文件夹失败。';
+        } finally {
+            event.target.value = '';
+        }
+    });
+
+    async function restoreAndAutoLoadDirectory() {
+        if (typeof window.showDirectoryPicker !== 'function') {
+            folderStatus.textContent = '当前浏览器不支持自动目录授权。可手动读取文件夹；建议使用最新版 Chrome 或 Edge。';
+            return;
+        }
+
+        const handle = await getSavedDirectoryHandle();
+        if (!handle) {
+            folderStatus.textContent = '首次使用：请选择 HTML 所在文件夹。授权后，下次打开会自动读取其中的 .cpp 和 .txt。';
+            return;
+        }
+
+        currentDirectoryHandle = handle;
+        currentDirectoryName = handle.name || '工作文件夹';
+        const granted = await queryDirectoryPermission(handle, 'readwrite');
+        if (!granted) {
+            folderStatus.textContent = `已记住文件夹“${currentDirectoryName}”，请点击“读取文件夹”重新授权。`;
+            return;
+        }
+
+        try {
+            await loadDirectoryFromHandle(handle, true);
+        } catch (error) {
+            folderStatus.textContent = `自动读取失败，请重新选择文件夹：${error.message || error}`;
+        }
+    }
+
+    function getLocalRecords() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(LOCAL_RECORD_KEY) || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function saveLocalRecord(record) {
+        try {
+            const records = getLocalRecords();
+            const index = records.findIndex(item => item.id === record.id);
+            if (index >= 0) records[index] = record;
+            else records.push(record);
+            localStorage.setItem(LOCAL_RECORD_KEY, JSON.stringify(records));
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function readRecordFile(directoryHandle) {
+        if (!directoryHandle) return [];
+        try {
+            const fileHandle = await directoryHandle.getFileHandle(RECORD_FILE_NAME, { create: false });
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+            if (!text.trim()) return [];
+            const parsed = JSON.parse(text);
+            return Array.isArray(parsed) ? parsed : Array.isArray(parsed.records) ? parsed.records : [];
+        } catch (error) {
+            if (error && error.name === 'NotFoundError') return [];
+            throw error;
+        }
+    }
+
+    async function writeRecordFile(directoryHandle, records) {
+        const fileHandle = await directoryHandle.getFileHandle(RECORD_FILE_NAME, { create: true });
+        const writable = await fileHandle.createWritable();
+        const payload = {
+            version: 1,
+            updatedAt: new Date().toISOString(),
+            records
+        };
+        await writable.write(JSON.stringify(payload, null, 2));
+        await writable.close();
+    }
+
+    function mergeRecords(...recordGroups) {
+        const map = new Map();
+        for (const group of recordGroups) {
+            for (const record of group || []) {
+                if (record && record.id) map.set(record.id, record);
+            }
+        }
+        return Array.from(map.values()).sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt)));
+    }
+
+    async function saveRecord(record, allowPermissionPrompt) {
+        if (!record) return { success: false, message: '没有可保存的完成记录。' };
+        const localSaved = saveLocalRecord(record);
+
+        if (!currentDirectoryHandle) {
+            return localSaved
+                ? {
+                    success: true,
+                    message: '记录已保存到浏览器。选择工作文件夹并授权后，可同步写入“酷爱打字通记录.json”。'
+                }
+                : {
+                    success: false,
+                    message: '当前页面无法使用浏览器存储。请先读取工作文件夹，完成练习后系统会自动保存记录。'
+                };
+        }
+
+        const granted = allowPermissionPrompt
+            ? await requestDirectoryPermission(currentDirectoryHandle, 'readwrite')
+            : await queryDirectoryPermission(currentDirectoryHandle, 'readwrite');
+
+        if (!granted) {
+            return {
+                success: true,
+                message: '记录已保存到浏览器；重新读取文件夹并授予写入权限后，可继续同步到记录文件。'
+            };
+        }
+
+        try {
+            const fileRecords = await readRecordFile(currentDirectoryHandle);
+            const localRecords = getLocalRecords();
+            const merged = mergeRecords(fileRecords, localRecords, [record]);
+            await writeRecordFile(currentDirectoryHandle, merged);
+            return {
+                success: true,
+                message: `记录已保存到“${currentDirectoryName || '工作文件夹'}/${RECORD_FILE_NAME}”。`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `写入记录文件失败，已保存在浏览器中：${error.message || error}`
+            };
+        }
+    }
+
+    function formatRecordDate(isoString) {
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) return String(isoString || '');
+        return date.toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function renderRecords(records, fileName) {
+        recordsModalTitle.textContent = `${fileName} 的历史记录`;
+        recordsContent.innerHTML = '';
+
+        if (records.length === 0) {
+            recordsContent.innerHTML = '<div class="record-empty">没有找到同名文件的历史记录。</div>';
+            return;
+        }
+
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'record-table-wrap';
+        const table = document.createElement('table');
+        table.className = 'record-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th class="record-time">完成时间</th>
+                    <th class="record-time">用时</th>
+                    <th class="record-speed">速度</th>
+                    <th class="record-accuracy">正确率</th>
+                    <th class="record-error">输错率</th>
+                    <th class="record-total">输入字符</th>
+                </tr>
+            </thead>
+        `;
+        const tbody = document.createElement('tbody');
+        for (const record of records) {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="record-time">${formatRecordDate(record.completedAt)}</td>
+                <td class="record-time">${record.timeText || formatTime(Number(record.timeMs) || 0)}</td>
+                <td class="record-speed">${Number(record.speedCpm) || 0} 字符/分钟</td>
+                <td class="record-accuracy">${Number(record.accuracy).toFixed(2)}%</td>
+                <td class="record-error">${Number(record.errorRate).toFixed(2)}%</td>
+                <td class="record-total">${Number(record.typedChars ?? record.requiredChars) || 0}</td>
+            `;
+            tbody.appendChild(row);
+        }
+        table.appendChild(tbody);
+        tableWrap.appendChild(table);
+        recordsContent.appendChild(tableWrap);
+    }
+
+    async function readAndShowRecords() {
+        const entry = fileEntries.find(item => item.id === activeFileId);
+        if (!entry) {
+            folderStatus.textContent = '请先选择一个 CPP 或 TXT 文件。';
+            return;
+        }
+
+        let fileRecords = [];
+        if (currentDirectoryHandle) {
+            const granted = await requestDirectoryPermission(currentDirectoryHandle, 'readwrite');
+            if (granted) {
+                try {
+                    fileRecords = await readRecordFile(currentDirectoryHandle);
+                } catch (error) {
+                    folderStatus.textContent = `读取记录文件失败：${error.message || error}`;
+                }
+            }
+        }
+
+        const allRecords = mergeRecords(fileRecords, getLocalRecords());
+        const matched = allRecords.filter(record => normalizeName(record.fileName) === normalizeName(entry.name));
+        renderRecords(matched, entry.name);
+        recordsModal.style.display = 'flex';
+    }
+
+    readRecordsBtn.addEventListener('click', readAndShowRecords);
+
+    document.getElementById('close-modal-btn').addEventListener('click', () => {
+        completionModal.style.display = 'none';
+        window.focus();
+    });
+
+    document.getElementById('close-records-modal-btn').addEventListener('click', () => {
+        recordsModal.style.display = 'none';
+        window.focus();
+    });
+
+    recordsModal.addEventListener('click', event => {
+        if (event.target === recordsModal) recordsModal.style.display = 'none';
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        renderFingerGuide();
+        renderKeyboard();
+
+        const defaultEntry = makeFileEntry({
+            name: '默认示例.cpp',
+            path: '默认示例.cpp',
+            text: defaultText
+        });
+        replaceFileEntries([defaultEntry]);
+        await restoreAndAutoLoadDirectory();
+    });
+</script>
+
+<style>
+/* 全屏模式继续保持全屏无缝铺满，不重新产生外围留白 */
+body.tc-fullscreen {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+}
+body.tc-fullscreen .app-container {
+    width: 100vw;
+    max-width: none;
+    height: 100vh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+</style>
+<script>
+(function () {
+    var back = document.getElementById('tc-back');
+    var fs = document.getElementById('tc-fs');
+    var exitfs = document.getElementById('tc-exitfs');
+    if (back) back.addEventListener('click', function () {
+        try { window.parent.postMessage('kuaioj:typing:exit', '*'); } catch (e) {}
+    });
+    function enterFs() {
+        var el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+    function exitFs() {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+    if (fs) fs.addEventListener('click', enterFs);
+    if (exitfs) exitfs.addEventListener('click', exitFs);
+    function sync() {
+        var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        document.body.classList.toggle('tc-fullscreen', isFs);
+        if (fs) fs.style.display = isFs ? 'none' : '';
+        if (exitfs) exitfs.style.display = isFs ? '' : 'none';
+    }
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+})();
+</script>
+
+</body>
+</html>

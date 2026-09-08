@@ -1,0 +1,2189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>键域防线</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: #000; color: #d6dae0; overflow: hidden;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+  #game { position: relative; width: 100vw; height: 100vh; }
+  #bgCanvas {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none;
+  }
+  @keyframes shakeBig {
+    0%   { transform: translate(0, 0); }
+    15%  { transform: translate(-14px, 10px); }
+    30%  { transform: translate(12px, -9px); }
+    45%  { transform: translate(-10px, -8px); }
+    60%  { transform: translate(9px, 7px); }
+    75%  { transform: translate(-6px, -4px); }
+    100% { transform: translate(0, 0); }
+  }
+  #game.shakeBig { animation: shakeBig .35s ease; }
+
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+    display: flex; gap: 22px; padding: 12px 18px;
+    font-size: 13px; color: #79808c; letter-spacing: .5px;
+  }
+  #hud b { color: #d6dae0; font-weight: 600; }
+
+  .char {
+    position: absolute; line-height: 1; font-weight: 600; z-index: 24;
+    font-family: "Courier New", Consolas, "SFMono-Regular", monospace; color: #8b93a3;
+    transition: color .08s, opacity .3s;
+  }
+  .char.target { color: #ffd24a; text-shadow: 0 0 10px rgba(255,210,74,.55); }
+  .char.done { color: #46c08a; }
+  .char.vanish { opacity: 0; transition: opacity .9s ease; }
+  .char.missed { color: #e05a5a; opacity: .5; }
+  .char.skipped { color: #e8a33d; opacity: .85; animation: tumble .9s ease-in forwards; }
+  @keyframes tumble {
+    from { transform: translateY(0) rotate(0deg); opacity: .85; }
+    to   { transform: translateY(1600px) rotate(720deg); opacity: 0; }
+  }
+  .char.tocannon { color: #e05a5a; animation: tocannon .8s ease-in forwards; }
+  @keyframes tocannon {
+    from { transform: translate(0,0) rotate(0deg); opacity: .95; }
+    to   { transform: translate(var(--dx), var(--dy)) rotate(540deg); opacity: .55; }
+  }
+  .particle {
+    position: absolute; width: 5px; height: 5px; border-radius: 50%;
+    background: #ffd24a; z-index: 21; pointer-events: none;
+    animation: burst .5s ease-out forwards;
+  }
+  @keyframes burst {
+    from { transform: translate(0, 0) scale(1); opacity: 1; }
+    to   { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; }
+  }
+
+  #cannon { position: absolute; left: 50%; bottom: 30px; width: 0; height: 0; z-index: 22; }
+  #playerHPBar {
+    position: absolute; bottom: 42px; left: 30px; width: 80px; height: 16px;
+    background: rgba(224,90,90,.3); border-radius: 4px; overflow: hidden; z-index: 23;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  #playerHPFill {
+    height: 100%; background: #46c08a; border-radius: 3px;
+    transition: width .2s ease, background .2s ease;
+  }
+  #hpText {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    text-align: center; font: 700 11px/16px system-ui; color: #fff;
+    text-shadow: 0 0 3px rgba(0,0,0,0.8); z-index: 2;
+  }
+  .item-f1-wrap {
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    gap: 5px;
+  }
+  #energyBar {
+    position: static; display: flex; flex-direction: row; align-items: center; justify-content: center;
+    gap: 4px; height: 8px; margin: 0; z-index: 23;
+  }
+  .energy-cell {
+    width: 8px; height: 6px; border-radius: 2px;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+    transition: all .2s ease;
+  }
+  .energy-cell.filled {
+    background: linear-gradient(90deg, #ff6b3d, #e05a5a);
+    border-color: #ff6b3d;
+    box-shadow: 0 0 6px rgba(255,107,61,.7);
+  }
+  .energy-cell.full {
+    background: linear-gradient(90deg, #ffd24a, #ff6b3d);
+    border-color: #ffd24a;
+    box-shadow: 0 0 10px rgba(255,210,74,.8);
+    animation: energyPulse .6s ease-in-out infinite alternate;
+  }
+  @keyframes energyPulse { from { box-shadow: 0 0 6px rgba(255,210,74,.5); } to { box-shadow: 0 0 14px rgba(255,210,74,1); } }
+  #energyLabel { display: none !important; }
+  .energy-orb {
+    position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle, #ffd24a 0%, #ff6b3d 60%, rgba(255,107,61,0) 100%);
+    box-shadow: 0 0 12px rgba(255,210,74,.8), 0 0 20px rgba(255,107,61,.5);
+    z-index: 26; pointer-events: none;
+    transition: left 1.1s cubic-bezier(.4,1,.6,1), top 1.1s cubic-bezier(.4,1,.6,1), transform 1.1s ease, opacity .2s ease .9s;
+  }
+  .mega-laser {
+    position: absolute; height: 8px; background: linear-gradient(90deg, #ff2020, #ff6040, #ff2020);
+    border-radius: 4px; transform-origin: left center;
+    box-shadow: 0 0 16px rgba(255,32,32,.9), 0 0 30px rgba(255,32,32,.5);
+    z-index: 25; pointer-events: none;
+    animation: megaLaserFade .5s ease-out forwards;
+  }
+  @keyframes megaLaserFade { from { opacity: 1; } to { opacity: 0; } }
+  #defenseLine {
+    position: absolute; left: 0; right: 0; height: 0; z-index: 20;
+    border-top: 2px dashed rgba(224,90,90,.55);
+    pointer-events: none; display: none;
+  }
+  #base {
+    position: absolute; bottom: -16px; left: -28px; width: 56px; height: 30px;
+    background: linear-gradient(#3c4452, #20252e);
+    border: 2px solid #4c5564; border-radius: 10px 10px 16px 16px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.5);
+  }
+  #base::before {
+    content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+    width: 30px; height: 22px; background: linear-gradient(#4a5260, #2c333d);
+    border: 2px solid #4c5564; border-radius: 50% 50% 0 0;
+  }
+  #barrel {
+    position: absolute; bottom: 6px; left: -8px; width: 16px; height: 46px;
+    background: linear-gradient(90deg, #2f9e74 0%, #57d79f 45%, #2f9e74 100%);
+    border-radius: 8px 8px 3px 3px;
+    transform-origin: bottom center; transition: transform .05s linear;
+    box-shadow: inset 0 0 5px rgba(0,0,0,.35);
+  }
+  .flash {
+    position: absolute; width: 22px; height: 22px; border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, #7fdcff 40%, rgba(77,166,255,0) 70%);
+    transform: translate(-50%, -50%); z-index: 5; pointer-events: none;
+    animation: flash .18s ease-out forwards;
+  }
+  @keyframes flash {
+    from { opacity: .95; transform: translate(-50%,-50%) scale(.4); }
+    to   { opacity: 0;   transform: translate(-50%,-50%) scale(1.6); }
+  }
+  .laser {
+    position: absolute; height: 3px; background: #4da6ff; border-radius: 2px;
+    transform-origin: left center; box-shadow: 0 0 8px rgba(77,166,255,.9);
+    animation: fade .18s linear forwards; z-index: 20;
+  }
+  .laser.wrong {
+    background: #e05a5a; box-shadow: 0 0 8px rgba(224,90,90,.9);
+  }
+  @keyframes fade { from { opacity: .9; } to { opacity: 0; } }
+
+  #reticle {
+    position: absolute; width: 34px; height: 34px; z-index: 23; pointer-events: none;
+    border: 2px solid rgba(63,208,255,.9); border-radius: 50%;
+    transform: translate(-50%, -50%); display: none;
+    box-shadow: 0 0 6px rgba(63,208,255,.5);
+  }
+  #reticle::before, #reticle::after { content: ''; position: absolute; background: rgba(63,208,255,.5); }
+  #reticle::before { left: 50%; top: -9px; width: 1px; height: 52px; transform: translateX(-50%); }
+  #reticle::after  { top: 50%; left: -9px; height: 1px; width: 52px; transform: translateY(-50%); }
+
+  #retreatMsg {
+    position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
+    font-size: 28px; font-weight: 700; color: #ffd24a;
+    text-shadow: 0 0 12px rgba(255,210,74,.6); z-index: 25;
+    display: none; pointer-events: none; letter-spacing: 6px;
+    animation: retreatPulse .6s ease-in-out infinite alternate;
+  }
+  @keyframes retreatPulse { from { opacity: .6; } to { opacity: 1; } }
+
+  #itemMsg {
+    position: absolute; left: 50%; bottom: 160px; transform: translateX(-50%);
+    font-size: 26px; font-weight: 700; color: #46c08a;
+    text-shadow: 0 0 12px rgba(70,192,138,.6); z-index: 35;
+    display: none; pointer-events: none; letter-spacing: 2px;
+    animation: itemPulse .4s ease-in-out infinite alternate;
+  }
+
+  /* 时缓倒计时与“获得道具”采用完全一致的提示视觉 */
+  #slowTimer {
+    position: absolute; left: 50%; bottom: 160px; transform: translateX(-50%);
+    font-size: 26px; font-weight: 700; color: #46c08a;
+    text-shadow: 0 0 12px rgba(70,192,138,.6); z-index: 35;
+    display: none; pointer-events: none; letter-spacing: 2px;
+    animation: itemPulse .4s ease-in-out infinite alternate;
+    white-space: nowrap;
+  }
+  @keyframes itemPulse { from { opacity: .7; } to { opacity: 1; } }
+
+  #itemPanel {
+    position: absolute; right: 30px; bottom: 30px; z-index: 35;
+    display: flex; gap: 15px;
+  }
+  .item-box {
+    background: rgba(0, 0, 0, 0.6); border: 1px solid #3a404c;
+    border-radius: 8px; padding: 10px 12px; min-width: 68px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    color: #c2c8d2; font-size: 13px; font-weight: 600; letter-spacing: 1px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .item-box .icon { font-size: 26px; line-height: 1; margin-bottom: 2px; }
+  .item-box.heal-item .icon { color: #ff4d67; text-shadow: 0 0 10px rgba(255,77,103,.72); }
+  .item-box .key { 
+    background: #46c08a; color: #10121a; padding: 2px 8px; 
+    border-radius: 4px; font-size: 12px; font-family: system-ui; letter-spacing: 0;
+  }
+  .item-box.disabled { opacity: 0.4; filter: grayscale(1); border-color: #3a404c; }
+  .item-box.used { opacity: 0; transform: translateY(20px) scale(0.7); pointer-events: none; }
+
+  .word { position: absolute; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+  .word.retreating { transition: top .6s linear; }
+  
+  /* 错误变红状态：飞机标红指示不可被炸弹摧毁，不掉落道具 */
+  .word.failed .plane-svg path { stroke: #ff3333 !important; fill: rgba(255,51,51,0.2) !important; filter: drop-shadow(0 0 4px #ff0000); }
+  .word.failed .wbar { display: none; }
+  
+  .plane { position: relative; width: var(--w); height: calc(var(--w) / 1.077); }
+  .plane-svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(180deg) scale(var(--planescale, 1)); transform-origin: center center; transition: transform .25s ease; pointer-events: none; }
+  .plane-svg path { fill: rgba(255,255,255,0.04); stroke: rgba(214,222,234,0.7); stroke-width: calc(var(--u) * 0.07); vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; transition: stroke .3s ease, fill .3s ease; }
+  .word.missed .plane-svg path { fill: rgba(224,90,90,0.08); stroke: rgba(224,90,90,0.85); }
+  .word.missed .wchar { color: #e05a5a; }
+  
+  /* 道具随飞机缩放：尺寸、机头相对位置、边框与光晕都跟随飞机当前比例 */
+  .plane-reward-icon {
+    position: absolute; left: 50%; bottom: var(--reward-bottom, 13%); transform: translateX(-50%);
+    font-size: var(--reward-font, 17px); z-index: 25; background: rgba(0,0,0,0.72);
+    border: var(--reward-border, 1px) solid #46c08a; border-radius: 50%;
+    width: var(--reward-size, 28px); height: var(--reward-size, 28px);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 var(--reward-glow, 8px) rgba(70,192,138,0.65);
+    animation: noseRewardPulse 1.6s ease-in-out infinite; pointer-events: none;
+    will-change: transform, width, height, bottom;
+  }
+  @keyframes noseRewardPulse { 0%, 100% { transform: translateX(-50%) scale(.94); } 50% { transform: translateX(-50%) scale(1.06); } }
+
+  .wletters { position: absolute; left: 50%; top: 51%; transform: translate(-50%, -50%); display: flex; font-family: "Courier New", Consolas, monospace; font-weight: 600; font-size: var(--fs); z-index: 2; }
+  .wchar { width: var(--cw); text-align: center; color: #d6dae0; transition: color .08s, width .18s ease; white-space: pre; }
+  .wchar.space { color: #5b6472; font-weight: 700; }
+  .wchar.target { color: #ffd24a; text-shadow: 0 0 10px rgba(255,210,74,.6); }
+  /* 正确输入的字符宽度塌陷隐藏 */
+  .wchar.done, .wchar.gone { width: 0; overflow: hidden; color: #46c08a; animation: wfade .5s ease forwards; }
+  /* 错误输入的字符保持原宽、变红跟随 */
+  .wchar.wrong { color: #ff3333 !important; text-shadow: 0 0 5px rgba(255,51,51,0.6); font-weight: bold; }
+  
+  @keyframes wfade { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-8px); } }
+  .word .wbar { position: absolute; top: 3px; right: 3px; width: calc(var(--w) * 0.25); height: 4px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; transition: width .15s ease, top .15s ease, right .15s ease; }
+  .wbar-fill { height: 100%; background: #46c08a; transition: width .15s ease, background .15s ease; }
+  .word.killed { opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+  .word.pre-explode { pointer-events: none; }
+  .word.pre-explode .plane-svg path { stroke: #e05a5a !important; fill: rgba(224,90,90,0.12) !important; }
+  .word.pre-explode .plane { animation: planeShake .5s ease-in-out; }
+  @keyframes planeShake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    15% { transform: translate(-3px, 1px) rotate(-1deg); }
+    30% { transform: translate(3px, -1px) rotate(1deg); }
+    45% { transform: translate(-4px, -2px) rotate(-2deg); }
+    60% { transform: translate(4px, 2px) rotate(2deg); }
+    75% { transform: translate(-3px, 2px) rotate(-1deg); }
+    90% { transform: translate(3px, -1px) rotate(1deg); }
+  }
+  .word.final-shaking { pointer-events: none; }
+  .word.final-shaking .plane-svg path { stroke: #e05a5a !important; fill: rgba(224,90,90,0.15) !important; }
+  .shard-char {
+    position: absolute; z-index: 26; pointer-events: none;
+    font-family: "Courier New", Consolas, monospace; font-weight: 700;
+    animation: shardFly 1.6s ease-out forwards;
+  }
+  @keyframes shardFly {
+    0%   { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(.3); opacity: 0; }
+  }
+  #cannon.exploding { pointer-events: none; }
+  #cannon.exploding #base { animation: baseBreak 1.2s ease-in forwards; }
+  #cannon.exploding #barrel { animation: barrelBreak 1.2s ease-in forwards; }
+  #cannon.exploding #playerHPBar { animation: uiBreak 1.2s ease-in forwards; }
+  #cannon.exploding ~ #itemPanel #energyBar, #cannon.exploding ~ #energyLabel { animation: uiBreak 1.2s ease-in forwards; }
+  @keyframes baseBreak {
+    0%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    30%  { transform: translate(-4px, -8px) rotate(-8deg); opacity: 1; }
+    100% { transform: translate(-60px, 120px) rotate(-120deg); opacity: 0; }
+  }
+  @keyframes barrelBreak {
+    0%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    30%  { transform: translate(4px, -10px) rotate(10deg); opacity: 1; }
+    100% { transform: translate(50px, 100px) rotate(140deg); opacity: 0; }
+  }
+  @keyframes uiBreak {
+    0%   { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    30%  { transform: translate(8px, -6px) rotate(12deg); opacity: 1; }
+    100% { transform: translate(40px, 110px) rotate(80deg); opacity: 0; }
+  }
+  .overlay {
+    position: absolute; inset: 0; z-index: 100;
+    background: transparent;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 { font-size: 26px; font-weight: 600; letter-spacing: 3px; color: #eef0f3; }
+  .overlay p { color: #79808c; font-size: 13px; }
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px;
+    margin: 4px 0 8px; min-width: 260px;
+  }
+  .stat-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 10px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06);
+  }
+  .stat-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+  .stat-body { display: flex; flex-direction: column; gap: 1px; }
+  .stat-label { font-size: 11px; color: #79808c; letter-spacing: .5px; }
+  .stat-value { font: 700 18px/1 system-ui; color: #eef0f3; }
+  .stat-value.green { color: #46c08a; }
+  .stat-value.gold { color: #ffd24a; }
+  .stat-value.red { color: #e05a5a; }
+  .end-time { font-size: 12px; color: #5b6472; letter-spacing: 1px; margin-top: 2px; }
+  .btns { display: flex; gap: 12px; }
+  button {
+    font: 600 14px/1 system-ui; padding: 12px 24px; border: none; border-radius: 8px;
+    background: #46c08a; color: #10121a; cursor: pointer; transition: filter .15s;
+  }
+  button:hover { filter: brightness(1.1); }
+  button.ghost { background: transparent; color: #c2c8d2; border: 1px solid #3a404c; }
+  #fileInput { display: none; }
+  /* 作战等级：与雷达战术主题统一 */
+  .levels {
+    display: grid; grid-template-columns: repeat(3, 112px); gap: 8px;
+    padding: 6px; border: 1px solid rgba(70,192,138,.18); border-radius: 12px;
+    background: linear-gradient(180deg, rgba(10,18,27,.74), rgba(4,9,15,.86));
+    box-shadow: inset 0 0 22px rgba(63,208,255,.025), 0 8px 24px rgba(0,0,0,.18);
+  }
+  .lvl {
+    position: relative; min-height: 48px; padding: 7px 10px 7px 12px; text-align: left;
+    border: 1px solid rgba(121,128,140,.32); border-radius: 8px;
+    background: linear-gradient(135deg, rgba(255,255,255,.025), rgba(255,255,255,.008));
+    color: #aab2bf; cursor: pointer; overflow: hidden;
+    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease;
+  }
+  .lvl::before {
+    content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px;
+    border-radius: 2px; background: rgba(91,100,114,.55); transition: all .18s ease;
+  }
+  .lvl::after {
+    content: ''; position: absolute; right: 8px; top: 8px; width: 5px; height: 5px;
+    border: 1px solid rgba(121,128,140,.55); border-radius: 50%;
+    box-shadow: 0 0 0 rgba(70,192,138,0); transition: all .18s ease;
+  }
+  .lvl-name { display: block; font: 700 12px/1.05 system-ui; letter-spacing: 1px; color: #c9d0da; }
+  .lvl-speed { display: block; margin-top: 6px; font: 600 9px/1 system-ui; letter-spacing: .7px; color: #66717f; }
+  .lvl:hover {
+    border-color: rgba(70,192,138,.6); background: rgba(70,192,138,.045); transform: translateY(-1px);
+  }
+  .lvl.active {
+    border-color: #46c08a; background: linear-gradient(135deg, rgba(70,192,138,.16), rgba(63,208,255,.04));
+    box-shadow: inset 0 0 16px rgba(70,192,138,.045), 0 0 12px rgba(70,192,138,.11);
+  }
+  .lvl.active::before { background: #46c08a; box-shadow: 0 0 8px rgba(70,192,138,.8); }
+  .lvl.active::after { background: #46c08a; border-color: #6ee0af; box-shadow: 0 0 7px rgba(70,192,138,.8); }
+  .lvl.active .lvl-name { color: #6ee0af; }
+  .lvl.active .lvl-speed { color: #8aaf9f; }
+
+  /* 战术雷达风格的模式二选一 */
+  #modeSelectionBox {
+    margin-top: 16px; display: flex; align-items: stretch; justify-content: center; gap: 10px;
+    padding: 5px; border: 1px solid rgba(70,192,138,.22); border-radius: 12px;
+    background: linear-gradient(180deg, rgba(12,20,29,.78), rgba(5,10,16,.88));
+    box-shadow: inset 0 0 22px rgba(63,208,255,.035), 0 8px 24px rgba(0,0,0,.22);
+  }
+  .mode-option { position: relative; cursor: pointer; }
+  .mode-option input { position: absolute; opacity: 0; pointer-events: none; }
+  .mode-card {
+    min-width: 124px; height: 46px; padding: 6px 13px; border-radius: 9px;
+    border: 1px solid rgba(121,128,140,.38); background: rgba(255,255,255,.025);
+    display: grid; grid-template-columns: 22px 1fr; grid-template-rows: 1fr 1fr;
+    column-gap: 7px; align-items: center; color: #8f99a7; transition: all .18s ease;
+  }
+  .mode-symbol { grid-row: 1 / 3; font-size: 14px; line-height: 1; text-align: center; opacity: .72; }
+  .mode-name { align-self: end; font: 700 13px/1 system-ui; letter-spacing: 1px; color: #c2c8d2; }
+  .mode-desc { align-self: start; margin-top: 4px; font: 500 9px/1 system-ui; letter-spacing: .5px; color: #66707d; }
+  .mode-option:hover .mode-card { border-color: rgba(70,192,138,.65); background: rgba(70,192,138,.05); }
+  .mode-option input[value="normal"]:checked + .mode-card {
+    border-color: #46c08a; background: linear-gradient(135deg, rgba(70,192,138,.16), rgba(63,208,255,.045));
+    box-shadow: inset 0 0 18px rgba(70,192,138,.06), 0 0 14px rgba(70,192,138,.13);
+  }
+  .mode-option input[value="normal"]:checked + .mode-card .mode-symbol,
+  .mode-option input[value="normal"]:checked + .mode-card .mode-name { color: #6ee0af; opacity: 1; }
+  .mode-option input[value="item"]:checked + .mode-card {
+    border-color: #d8ad45; background: linear-gradient(135deg, rgba(255,210,74,.15), rgba(255,107,61,.045));
+    box-shadow: inset 0 0 18px rgba(255,210,74,.05), 0 0 14px rgba(255,210,74,.12);
+  }
+  .mode-option input[value="item"]:checked + .mode-card .mode-symbol,
+  .mode-option input[value="item"]:checked + .mode-card .mode-name { color: #ffd24a; opacity: 1; }
+  #customSpeedBox { display: none; align-items: center; gap: 8px; justify-content: center; margin-top: 10px; }
+  #customSpeedBox span.lbl { font: 600 13px/1 system-ui; color: #c2c8d2; }
+  #customSpeedBox span.range { font: 600 12px/1 system-ui; color: #9aa3b2; }
+  #customSpeed { width: 70px; font: 600 14px/1 system-ui; padding: 7px 8px; border: 1px solid #3a404c; border-radius: 8px; background: transparent; color: #eef0f3; text-align: center; outline: none; }
+  #customSpeed:focus { border-color: #46c08a; }
+  .hint { color: #ffd24a; font-size: 13px; min-height: 18px; }
+  .hint:empty { display: none; }
+  
+  /* 按钮拉开间隙，避免重叠 */
+  #exitBtn {
+    position: absolute; top: 12px; right: 64px; z-index: 110;
+    font: 600 12px/1 system-ui; padding: 7px 14px; border-radius: 8px;
+    background: rgba(0,0,0,.4); color: #c2c8d2; border: 1px solid #3a404c; cursor: pointer;
+    transition: all .15s; display: none;
+  }
+  #exitBtn:hover { border-color: #e05a5a; color: #e05a5a; }
+
+  #muteBtn {
+    position: absolute; top: 12px; right: 16px; z-index: 110;
+    font: 600 12px/1 system-ui; padding: 7px 12px; border-radius: 8px;
+    background: rgba(0,0,0,.4); color: #c2c8d2; border: 1px solid #3a404c; cursor: pointer;
+    transition: all .15s;
+  }
+  #muteBtn:hover { border-color: #46c08a; color: #46c08a; }
+
+  /* 左下角信息区：快捷键在上，战术提示在下 */
+  #lowerLeftInfo {
+    position: absolute; left: 20px; bottom: 20px; z-index: 100;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    pointer-events: none;
+  }
+  #hotkeyHint {
+    font-size: 13px; color: #79808c; letter-spacing: 1px; font-weight: 600;
+    white-space: nowrap;
+  }
+  #gameRuleHint {
+    display: none; font-size: 13px; line-height: normal;
+    color: #79808c; letter-spacing: 1px; font-weight: 600;
+    white-space: nowrap;
+  }
+  #gameRuleHint.show { display: block; }
+  #gameRuleHint b { color: inherit; font-weight: inherit; }
+
+  #comboPop {
+    position: absolute; left: calc(50% - 110px); bottom: 70px; z-index: 24;
+    text-align: center; pointer-events: none; opacity: 0; transition: opacity .25s ease;
+  }
+  #comboPop .num { display: block; font: 800 38px/1 system-ui; color: #ffd24a; text-shadow: 0 0 14px rgba(255,210,74,.65); }
+  #comboPop .lbl { display: block; font: 600 12px/1 system-ui; color: #9aa3b2; letter-spacing: 3px; margin-top: 2px; }
+  #comboPop.show { opacity: 1; animation: comboPop .32s cubic-bezier(.2,1.4,.4,1) both; }
+  @keyframes comboPop {
+    0%   { transform: scale(.5);  opacity: 0; }
+    35%  { transform: scale(1.25); opacity: 1; }
+    100% { transform: scale(1);  opacity: 1; }
+  }
+  #typer { position: fixed; left: 8px; bottom: 6px; width: 1px; height: 1px; opacity: 0; border: 0; margin: 0; padding: 0; background: transparent; color: transparent; font-size: 16px; outline: none; z-index: -1; }
+
+  .explosion-flash {
+    position: absolute; border-radius: 50%; z-index: 28; pointer-events: none;
+    background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,180,60,0.6) 30%, rgba(255,80,20,0.2) 60%, transparent 80%);
+    transform: translate(-50%, -50%);
+    animation: expflash .3s ease-out forwards;
+  }
+  @keyframes expflash {
+    from { width: 50px; height: 50px; opacity: 1; }
+    to   { width: 180px; height: 180px; opacity: 0; }
+  }
+  .shockwave {
+    position: absolute; border-radius: 50%; z-index: 29; pointer-events: none;
+    border: 3px solid rgba(255, 200, 80, 0.85);
+    transform: translate(-50%, -50%);
+    animation: shockwave .5s ease-out forwards;
+  }
+  @keyframes shockwave {
+    from { width: 10px; height: 10px; opacity: 1; border-width: 4px; }
+    to   { width: 150px; height: 150px; opacity: 0; border-width: 1px; }
+  }
+  .eparticle {
+    position: absolute; width: 6px; height: 6px; border-radius: 50%;
+    z-index: 27; pointer-events: none;
+    animation: eburst .6s ease-out forwards;
+  }
+  @keyframes eburst {
+    from { transform: translate(0, 0) scale(1); opacity: 1; }
+    to   { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+  }
+  .edebris {
+    position: absolute; width: 4px; height: 8px; z-index: 27; pointer-events: none;
+    animation: edebris .8s ease-in forwards;
+  }
+  @keyframes edebris {
+    from { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    to   { transform: translate(var(--dx), var(--dy)) rotate(720deg); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="bgCanvas" width="1552" height="874"></canvas>
+  <div id="hud">
+    <span style="display:none">得分 <b id="score">0</b></span>
+    <span style="display:none">连击 <b id="combo">0</b></span>
+    <span style="display:none">受击 <b id="hitsTaken">0</b></span>
+    <span>进度 <b id="progress">0%</b></span>
+  </div>
+  <div id="cannon" style="display: none;">
+    <div id="playerHPBar"><div id="playerHPFill"></div><span id="hpText">20/20</span></div>
+    <div id="base"></div>
+    <div id="barrel"></div>
+  </div>
+  <div id="energyLabel" style="display: none;">F1</div>
+  <div id="reticle"></div>
+  <div id="retreatMsg">全体后退</div>
+  <div id="itemMsg"></div>
+  <div id="slowTimer">时间缓慢 5 秒</div>
+  <div id="defenseLine"></div>
+  <div id="comboPop"></div>
+  
+  <div id="itemPanel" style="display: none;">
+    <div class="item-f1-wrap">
+      <div id="item-f1" class="item-box disabled"><span class="icon">🚀</span><span class="key">F1</span>导弹</div>
+      <div id="energyBar" style="display: none;"></div>
+    </div>
+    <div id="item-f2" class="item-box disabled"><span class="icon">⏳</span><span class="key">F2</span>时缓</div>
+    <div id="item-f3" class="item-box disabled"><span class="icon">💣</span><span class="key">F3</span>炸弹</div>
+    <div id="item-f4" class="item-box disabled"><span class="icon">💨</span><span class="key">F4</span>后退</div>
+    <div id="item-f5" class="item-box disabled"><span class="icon">🤖</span><span class="key">F5</span>连击</div>
+    <div id="item-f6" class="item-box disabled heal-item"><span class="icon">♥</span><span class="key">F6</span>回复</div>
+  </div>
+
+  <button id="exitBtn" aria-hidden="true" tabindex="-1">返回主页</button>
+  <div class="typing-ctrl" role="group" aria-label="页面控制">
+    <button class="tc-btn tc-icon-btn" id="muteBtn" aria-pressed="true" aria-label="关闭声音" title="关闭声音">🔊</button>
+    <button class="tc-btn tc-icon-btn" id="tc-back" aria-label="返回主页" title="返回主页">⌂</button>
+    <button class="tc-btn tc-icon-btn" id="tc-fs" aria-label="全屏显示" title="全屏显示">⛶</button>
+    <button class="tc-btn tc-icon-btn" id="tc-exitfs" aria-label="退出全屏" title="退出全屏" style="display:none">⤢</button>
+  </div>
+  <div id="lowerLeftInfo">
+    <div id="hotkeyHint">ESC: 返回主页 &nbsp;&nbsp;|&nbsp;&nbsp; Enter: 开始/重开</div>
+    <div id="gameRuleHint">提示：使用 <b>F1～F6 道具</b> 消灭或自动处理的飞机，<b>无法获得该机携带的道具</b></div>
+  </div>
+  
+  <input id="typer" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="none" readonly tabindex="-1" aria-hidden="true" style="ime-mode: disabled;">
+
+  <div id="startScreen" class="overlay">
+    <h1>键域防线</h1>
+    <div class="levels" id="levels"></div>
+    <div id="customSpeedBox"><span class="lbl">打字速度</span><input type="number" id="customSpeed" min="10" max="400" value="80"><span class="range">(10-400)</span></div>
+    
+    <!-- 模式二选一：战术雷达风格 -->
+    <div id="modeSelectionBox">
+      <label class="mode-option">
+        <input type="radio" name="gameMode" value="normal" checked>
+        <span class="mode-card">
+          <span class="mode-symbol">◎</span><span class="mode-name">普通模式</span><span class="mode-desc">标准拦截</span>
+        </span>
+      </label>
+      <label class="mode-option">
+        <input type="radio" name="gameMode" value="item">
+        <span class="mode-card">
+          <span class="mode-symbol">◆</span><span class="mode-name">道具模式</span><span class="mode-desc">战术增强</span>
+        </span>
+      </label>
+    </div>
+    <p class="hint" id="hint"></p>
+    <div class="btns">
+      <button id="startBtn">开始游戏</button>
+      <button id="importBtn" class="ghost">导入文件</button>
+    </div>
+    <input type="file" id="fileInput" accept=".cpp,.py,.c,.h,.hpp,.cc,.js,.ts,.java,.go,.rs,.txt">
+  </div>
+
+  <div id="endScreen" class="overlay hidden">
+    <h1 id="endTitle">战斗结束</h1>
+    <div id="endStats" class="stats-grid"></div>
+    <p id="endTime" class="end-time"></p>
+    <div class="btns">
+      <button id="againBtn">再来一次</button>
+      <button id="menuBtn" class="ghost">返回主页</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const game = $('#game'), barrel = $('#barrel'), reticle = $('#reticle'), defenseLine = $('#defenseLine'), retreatMsg = $('#retreatMsg');
+const scoreEl = $('#score'), comboEl = $('#combo'), hitsTakenEl = $('#hitsTaken'), progEl = $('#progress');
+const comboPop = $('#comboPop');
+const startScreen = $('#startScreen'), endScreen = $('#endScreen'), fileInput = $('#fileInput');
+const cannonEl = $('#cannon'), energyBarEl = $('#energyBar'), energyLabelEl = $('#energyLabel');
+
+function showGameUI(show) {
+  cannonEl.style.display = show ? '' : 'none';
+  energyBarEl.style.display = (show && itemModeEnabled) ? '' : 'none';
+  energyLabelEl.style.display = 'none';
+  $('#exitBtn').style.display = show ? 'block' : 'none';
+  const gameRuleHint = $('#gameRuleHint');
+  if (gameRuleHint) gameRuleHint.classList.toggle('show', !!show && itemModeEnabled);
+  if (!show && $('#itemPanel')) $('#itemPanel').style.display = 'none';
+}
+
+const DEFAULT = `#include <iostream>\nusing namespace std;\nint main() {\n    cout << "hello, world!" << endl;\n    return 0;\n}`;
+
+const LEVELS = [
+  { name: '蒟蒻', speed: 20 },
+  { name: '入门', speed: 60 },
+  { name: '正常', speed: 100 },
+  { name: '高手', speed: 140 },
+  { name: '巨佬', speed: 180 },
+  { name: '自定义', speed: 0 },
+];
+let selectedLevel = 1; // 默认选择“入门”难度
+
+function getCustomSpeed() {
+  const input = $('#customSpeed');
+  const v = parseInt((input || {}).value);
+  if (isNaN(v)) return 80;
+  return Math.max(10, Math.min(400, v));
+}
+
+function clampCustomSpeedInput() {
+  const input = $('#customSpeed');
+  if (!input || input.value === '') return;
+  input.value = String(getCustomSpeed());
+}
+
+function renderLevels() {
+  const box = $('#levels'); box.innerHTML = '';
+  LEVELS.forEach((lv, i) => {
+    const b = document.createElement('button');
+    b.className = 'lvl' + (i === selectedLevel ? ' active' : '');
+    const speedLabel = lv.name === '自定义' ? 'CUSTOM SPEED' : `SPEED ${lv.speed}`;
+    b.innerHTML = `<span class="lvl-name">${lv.name}</span><span class="lvl-speed">${speedLabel}</span>`;
+    b.onclick = () => {
+      selectedLevel = i; // 切换关卡只改变速度，不清除已经导入的程序
+      box.querySelectorAll('.lvl').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      const csBox = $('#customSpeedBox');
+      if (csBox) csBox.style.display = (lv.name === '自定义') ? 'flex' : 'none';
+      $('#hint').textContent = '';
+    };
+    box.appendChild(b);
+  });
+  const csInput = $('#customSpeed');
+  if (csInput && !csInput.dataset.clampBound) {
+    csInput.dataset.clampBound = '1';
+    csInput.addEventListener('input', () => { $('#hint').textContent = ''; });
+    csInput.addEventListener('change', clampCustomSpeedInput);
+    csInput.addEventListener('blur', clampCustomSpeedInput);
+  }
+}
+
+let CODE = DEFAULT;
+let usingImportedCode = false;
+let words = [], wIdx = 0, nextWait = 0, totalChars = 0, typedCount = 0;
+let score = 0, combo = 0, maxCombo = 0, hits = 0, miss = 0, kills = 0;
+let playerHP = 20, playerMaxHP = 20;
+const MAX_ENERGY = 5;
+let energy = 0;
+let running = false, lastT = 0, startT = 0, raf = 0;
+let targetCharEl = null;
+let CW = 26, FH = 32, FS = 23, STEP = 22, SPEED = 70, MAXFALL = 12;
+let BASE_SPEED = SPEED;
+let slowTimerInterval = null;
+let slowTimerTimeout = null;
+let slowModeActive = false;
+const PLANE_ASPECT = 1.077;
+let cx = 0, cy = 0, MISSY = 0;
+let actx = null;
+let soundOn = true;
+
+let itemModeEnabled = false;
+let itemF2Owned = false, itemF3Owned = false, itemF4Owned = false, itemF5Owned = false, itemF6Owned = false;
+// 道具掉落节流：避免连续多架飞机都携带道具
+let itemRewardGap = 99;
+let itemMsgTimer = null;
+
+// ============ 雷达战术网格背景渲染模块 ============
+const bgCanvas = document.getElementById('bgCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+let bgStars = [];
+let bgRetreat = false, bgLastT = 0, bgRaf = 0;
+let bgOffset = 0;
+let bgPlanes = [];
+let gameSessionId = 0;
+
+function makeBgPlane(resetAbove = false) {
+  return {
+    x: Math.random() * innerWidth,
+    y: resetAbove ? (-30 - Math.random() * 180) : Math.random() * innerHeight,
+    size: 8 + Math.random() * 10,
+    speed: 18 + Math.random() * 28,
+    drift: (Math.random() - 0.5) * 10,
+    alpha: 0.18 + Math.random() * 0.28
+  };
+}
+
+
+function initBg() {
+  bgCanvas.width = innerWidth; bgCanvas.height = innerHeight;
+  bgStars = [];
+  bgPlanes = [];
+  for (let i = 0; i < 60; i++) {
+    const brightness = Math.random();
+    bgStars.push({
+      x: Math.random() * innerWidth, y: Math.random() * innerHeight,
+      size: brightness * 1.5 + 1.0, alpha: brightness * 0.5 + 0.2, speedMul: brightness * 1.0 + 0.5,
+      twinkle: Math.random() * 0.04 + 0.02, twinkleOffset: Math.random() * Math.PI * 2
+    });
+  }
+  for (let i = 0; i < 11; i++) bgPlanes.push(makeBgPlane(false));
+}
+
+function drawBg(dt) {
+  bgCtx.fillStyle = '#060a12';
+  bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+  
+  const speed = running ? SPEED : 30;
+  const dir = bgRetreat ? -1 : 1;
+  bgOffset += speed * dt * 0.5 * dir;
+
+  const gridSize = 60;
+  bgCtx.lineWidth = 1;
+  bgCtx.strokeStyle = 'rgba(47, 158, 116, 0.15)'; 
+  
+  bgCtx.beginPath();
+  const startY = bgOffset % gridSize;
+  for (let y = startY - gridSize; y < bgCanvas.height; y += gridSize) {
+    bgCtx.moveTo(0, y); bgCtx.lineTo(bgCanvas.width, y);
+  }
+  const midX = bgCanvas.width / 2;
+  for (let x = midX % gridSize; x < bgCanvas.width; x += gridSize) {
+    bgCtx.moveTo(x, 0); bgCtx.lineTo(x, bgCanvas.height);
+  }
+  for (let x = midX % gridSize - gridSize; x >= 0; x -= gridSize) {
+    bgCtx.moveTo(x, 0); bgCtx.lineTo(x, bgCanvas.height);
+  }
+  bgCtx.stroke();
+
+  bgCtx.strokeStyle = 'rgba(63, 208, 255, 0.12)';
+  bgCtx.beginPath();
+  bgCtx.arc(midX, bgCanvas.height, 300, 0, Math.PI * 2);
+  bgCtx.stroke();
+  bgCtx.beginPath();
+  bgCtx.arc(midX, bgCanvas.height, 600, 0, Math.PI * 2);
+  bgCtx.stroke();
+
+  const now = Date.now() * 0.003;
+  for (const s of bgStars) {
+    s.y += speed * dt * s.speedMul * dir;
+    if (s.y > bgCanvas.height + 5) { s.y = -5; s.x = Math.random() * innerWidth; }
+    else if (s.y < -5) { s.y = bgCanvas.height + 5; s.x = Math.random() * innerWidth; }
+    const tw = 0.5 + 0.5 * Math.sin(now * s.twinkle * 10 + s.twinkleOffset);
+    bgCtx.fillStyle = `rgba(70, 192, 138, ${s.alpha * tw})`;
+    bgCtx.fillRect(s.x, s.y, s.size * 2, s.size * 2);
+  }
+
+  // 主页专属的小型巡航飞机，只作为背景装饰，不参与游戏判定
+  const onHome = !running && !startScreen.classList.contains('hidden');
+  if (onHome) {
+    bgCtx.save();
+    bgCtx.lineWidth = 1.2;
+    for (let i = 0; i < bgPlanes.length; i++) {
+      const p = bgPlanes[i];
+      p.y += p.speed * dt;
+      p.x += p.drift * dt;
+      if (p.y > bgCanvas.height + 28 || p.x < -40 || p.x > bgCanvas.width + 40) bgPlanes[i] = makeBgPlane(true);
+      const q = bgPlanes[i];
+      bgCtx.save();
+      bgCtx.translate(q.x, q.y);
+      bgCtx.globalAlpha = q.alpha;
+      bgCtx.strokeStyle = 'rgba(116, 203, 255, .85)';
+      bgCtx.beginPath();
+      bgCtx.moveTo(0, q.size);
+      bgCtx.lineTo(-q.size * .20, q.size * .12);
+      bgCtx.lineTo(-q.size * .78, -q.size * .08);
+      bgCtx.lineTo(-q.size * .78, -q.size * .28);
+      bgCtx.lineTo(-q.size * .15, -q.size * .08);
+      bgCtx.lineTo(0, -q.size * .72);
+      bgCtx.lineTo(q.size * .15, -q.size * .08);
+      bgCtx.lineTo(q.size * .78, -q.size * .28);
+      bgCtx.lineTo(q.size * .78, -q.size * .08);
+      bgCtx.lineTo(q.size * .20, q.size * .12);
+      bgCtx.closePath();
+      bgCtx.stroke();
+      bgCtx.restore();
+    }
+    bgCtx.restore();
+  }
+
+  const grad = bgCtx.createLinearGradient(0, 0, 0, 200);
+  grad.addColorStop(0, 'rgba(0,0,0,0.85)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  bgCtx.fillStyle = grad;
+  bgCtx.fillRect(0, 0, bgCanvas.width, 200);
+}
+
+function bgLoop(t) { if (!bgLastT) bgLastT = t; const dt = Math.min(0.05, (t - bgLastT) / 1000) || 0; bgLastT = t; drawBg(dt); bgRaf = requestAnimationFrame(bgLoop); }
+
+function normalize(s) {
+  const m = { ' ': ' ', '。': '.', '，': ',', '；': ';', '：': ':', '！': '!', '？': '?',
+              '（': '(', '）': ')', '“': '"', '”': '"', '‘': "'", '’': "'",
+              '【': '[', '】': ']', '《': '<', '》': '>', '—': '-' };
+  let out = ''; for (const ch of s) out += (m[ch] || ch); return out;
+}
+
+function layout() {
+  cx = innerWidth / 2; cy = innerHeight - 36; MISSY = innerHeight - 88;
+  if (defenseLine) defenseLine.style.top = MISSY + 'px';
+  let maxLen = 1; for (const w of words) if (w.len > maxLen) maxLen = w.len;
+  CW = Math.min(26, (innerWidth * 0.9) / maxLen); FH = CW * 1.25; FS = FH * 0.72; STEP = CW * 0.85;
+}
+
+const PLANE_PATH = `M100.00 16.40 C100.78 16.48 101.53 17.03 102.20 17.62 C102.81 17.88 103.40 18.18 103.96 18.53 C104.51 18.87 105.04 19.25 105.55 19.66 C106.05 20.07 106.52 20.52 106.97 21.00 C107.42 21.47 107.85 21.99 108.25 22.52 C108.65 23.06 109.02 23.63 109.38 24.22 C109.73 24.82 110.06 25.44 110.37 26.08 C110.68 26.72 110.97 27.39 111.24 28.08 C111.51 28.77 111.76 29.48 111.99 30.20 C112.22 30.92 112.43 31.67 112.63 32.43 C112.83 33.19 113.00 33.96 113.17 34.75 C113.33 35.53 113.48 36.33 113.61 37.14 C113.75 37.94 113.87 38.76 113.98 39.59 C114.08 40.41 114.18 41.24 114.26 42.08 C114.35 42.91 114.42 43.75 114.48 44.59 C114.55 45.43 114.60 46.27 114.64 47.11 C114.69 47.95 114.72 48.79 114.75 49.62 C114.79 50.46 114.81 51.29 114.83 52.11 C114.84 52.93 114.86 53.75 114.86 54.55 C114.87 55.36 114.88 56.16 114.88 56.94 C114.88 57.72 114.88 58.50 114.88 59.25 C114.88 60.01 114.82 60.69 114.87 61.47 C114.93 62.25 115.00 63.42 115.22 63.91 C115.45 64.40 115.80 64.21 116.25 64.39 C116.69 64.58 117.25 64.79 117.88 65.02 C118.52 65.25 119.26 65.50 120.07 65.78 C120.88 66.05 121.78 66.35 122.75 66.66 C123.71 66.97 124.76 67.30 125.86 67.65 C126.96 68.00 128.13 68.36 129.34 68.74 C130.56 69.12 131.84 69.51 133.15 69.92 C134.46 70.32 135.82 70.74 137.21 71.17 C138.59 71.60 140.02 72.04 141.46 72.49 C142.91 72.94 144.38 73.40 145.86 73.87 C147.34 74.33 148.84 74.81 150.34 75.29 C151.83 75.76 153.34 76.25 154.84 76.74 C156.33 77.22 157.83 77.72 159.30 78.21 C160.77 78.70 162.24 79.20 163.66 79.69 C165.09 80.18 166.51 80.68 167.87 81.17 C169.24 81.66 170.58 82.15 171.87 82.64 C173.16 83.12 174.41 83.61 175.59 84.08 C176.78 84.56 177.92 85.03 178.99 85.49 C180.05 85.96 181.06 86.41 181.99 86.86 C182.91 87.30 183.77 87.74 184.54 88.16 C185.30 88.59 185.99 89.00 186.58 89.40 C187.17 89.80 187.67 90.19 188.06 90.56 C188.44 90.93 188.75 91.19 188.91 91.63 C189.06 92.07 188.97 92.84 188.97 93.20 C188.96 93.57 188.92 93.61 188.90 93.82 C188.89 94.03 188.88 94.24 188.88 94.45 C188.88 94.66 188.88 94.88 188.89 95.09 C188.90 95.31 188.91 95.53 188.92 95.75 C188.94 95.97 188.96 96.19 188.98 96.42 C189.00 96.64 189.03 96.87 189.05 97.09 C189.08 97.32 189.11 97.55 189.14 97.78 C189.16 98.01 189.20 98.24 189.22 98.47 C189.25 98.71 189.28 98.94 189.31 99.17 C189.34 99.41 189.37 99.64 189.40 99.88 C189.42 100.12 189.45 100.36 189.47 100.59 C189.49 100.83 189.51 101.07 189.52 101.31 C189.54 101.55 189.55 101.79 189.56 102.03 C189.56 102.27 189.56 102.51 189.56 102.74 C189.56 102.98 189.55 103.22 189.53 103.46 C189.52 103.70 189.50 103.94 189.47 104.18 C189.44 104.42 189.40 104.66 189.36 104.90 C189.31 105.14 189.26 105.38 189.20 105.61 C189.14 105.85 189.07 106.09 188.99 106.32 C188.91 106.56 188.82 106.80 188.71 107.03 C188.61 107.26 188.50 107.50 188.37 107.73 C188.25 107.96 188.11 108.19 187.96 108.42 C187.81 108.65 187.82 108.75 187.48 109.11 C187.14 109.46 186.43 110.18 185.94 110.53 C185.44 110.87 185.04 110.97 184.49 111.18 C183.94 111.38 183.31 111.56 182.62 111.74 C181.93 111.91 181.17 112.07 180.36 112.21 C179.55 112.36 178.67 112.49 177.76 112.61 C176.84 112.74 175.86 112.85 174.85 112.95 C173.84 113.04 172.78 113.13 171.68 113.21 C170.59 113.29 169.46 113.36 168.30 113.42 C167.14 113.48 165.95 113.53 164.74 113.58 C163.54 113.62 162.30 113.66 161.05 113.69 C159.81 113.72 158.54 113.75 157.27 113.77 C156.00 113.79 154.72 113.80 153.44 113.81 C152.16 113.82 150.87 113.82 149.60 113.82 C148.33 113.83 147.05 113.82 145.80 113.82 C144.54 113.82 143.29 113.81 142.07 113.80 C140.85 113.80 139.64 113.79 138.46 113.78 C137.29 113.77 136.13 113.76 135.02 113.76 C133.91 113.75 132.82 113.74 131.78 113.74 C130.74 113.73 129.74 113.73 128.79 113.73 C127.84 113.73 126.93 113.74 126.08 113.75 C125.23 113.75 124.43 113.77 123.70 113.78 C122.97 113.80 122.30 113.82 121.70 113.85 C121.10 113.88 120.57 113.92 120.11 113.96 C119.66 114.00 119.45 113.92 118.98 114.11 C118.51 114.29 117.72 114.77 117.28 115.07 C116.85 115.38 116.65 115.63 116.36 115.94 C116.08 116.24 115.82 116.57 115.58 116.90 C115.33 117.24 115.12 117.59 114.91 117.96 C114.71 118.32 114.53 118.70 114.37 119.09 C114.20 119.48 114.06 119.88 113.92 120.30 C113.79 120.71 113.68 121.13 113.57 121.56 C113.47 122.00 113.38 122.44 113.31 122.89 C113.23 123.34 113.17 123.80 113.11 124.26 C113.06 124.73 113.02 125.20 112.98 125.67 C112.94 126.15 112.92 126.63 112.90 127.11 C112.88 127.60 112.87 128.09 112.86 128.58 C112.85 129.07 112.85 129.56 112.85 130.05 C112.85 130.55 112.85 131.04 112.86 131.54 C112.86 132.03 112.87 132.52 112.88 133.02 C112.89 133.51 112.89 134.00 112.90 134.48 C112.90 134.97 112.91 135.45 112.91 135.93 C112.90 136.41 112.90 136.88 112.89 137.35 C112.88 137.82 112.87 138.28 112.84 138.73 C112.82 139.19 112.79 139.63 112.75 140.07 C112.71 140.51 112.67 140.94 112.61 141.35 C112.55 141.77 112.48 142.18 112.40 142.58 C112.32 142.97 112.23 143.36 112.12 143.73 C112.01 144.10 111.91 144.38 111.75 144.80 C111.60 145.22 111.25 145.93 111.18 146.24 C111.12 146.55 111.25 146.53 111.35 146.68 C111.44 146.83 111.58 146.97 111.76 147.11 C111.93 147.26 112.14 147.40 112.39 147.54 C112.63 147.69 112.91 147.83 113.22 147.97 C113.53 148.11 113.87 148.25 114.23 148.39 C114.59 148.53 114.99 148.67 115.40 148.81 C115.81 148.94 116.24 149.08 116.70 149.22 C117.15 149.36 117.62 149.49 118.10 149.63 C118.59 149.76 119.09 149.90 119.60 150.04 C120.11 150.17 120.64 150.31 121.16 150.44 C121.69 150.57 122.23 150.71 122.77 150.84 C123.30 150.98 123.85 151.11 124.39 151.24 C124.93 151.38 125.48 151.51 126.01 151.65 C126.55 151.78 127.08 151.91 127.61 152.05 C128.13 152.18 128.65 152.31 129.16 152.45 C129.66 152.58 130.16 152.71 130.63 152.85 C131.11 152.98 131.57 153.12 132.02 153.25 C132.46 153.39 132.89 153.52 133.29 153.66 C133.68 153.79 134.07 153.93 134.42 154.06 C134.77 154.20 135.09 154.33 135.38 154.47 C135.68 154.61 135.94 154.74 136.17 154.88 C136.40 155.02 136.59 155.16 136.75 155.30 C136.90 155.44 137.03 155.47 137.10 155.72 C137.17 155.96 137.15 156.49 137.15 156.77 C137.15 157.06 137.12 157.20 137.10 157.41 C137.09 157.63 137.07 157.84 137.05 158.06 C137.03 158.27 137.01 158.49 136.99 158.70 C136.97 158.92 136.95 159.13 136.93 159.35 C136.91 159.56 136.88 159.78 136.86 159.99 C136.83 160.21 136.80 160.42 136.77 160.63 C136.74 160.84 136.71 161.05 136.67 161.26 C136.63 161.47 136.60 161.68 136.55 161.89 C136.51 162.10 136.47 162.30 136.42 162.51 C136.37 162.71 136.32 162.91 136.26 163.11 C136.20 163.31 136.14 163.51 136.08 163.70 C136.01 163.89 135.94 164.09 135.87 164.28 C135.79 164.46 135.71 164.65 135.63 164.83 C135.54 165.02 135.46 165.20 135.36 165.37 C135.27 165.55 135.16 165.72 135.06 165.89 C134.95 166.06 134.84 166.22 134.72 166.39 C134.60 166.55 134.47 166.70 134.34 166.86 C134.21 167.01 134.07 167.16 133.92 167.30 C133.78 167.44 133.63 167.58 133.46 167.71 C133.30 167.85 133.13 167.97 132.96 168.10 C132.78 168.22 132.60 168.34 132.40 168.45 C132.21 168.56 132.01 168.67 131.80 168.77 C131.59 168.87 131.50 168.93 131.14 169.05 C130.79 169.17 130.04 169.39 129.66 169.48 C129.28 169.57 129.13 169.58 128.85 169.61 C128.58 169.64 128.30 169.66 128.01 169.68 C127.72 169.70 127.43 169.70 127.13 169.70 C126.84 169.70 126.53 169.70 126.23 169.68 C125.92 169.67 125.61 169.65 125.30 169.63 C124.99 169.61 124.67 169.58 124.35 169.55 C124.03 169.52 123.71 169.48 123.38 169.44 C123.06 169.41 122.73 169.37 122.40 169.33 C122.08 169.29 121.74 169.24 121.41 169.20 C121.08 169.16 120.75 169.12 120.42 169.08 C120.09 169.03 119.75 168.99 119.42 168.96 C119.09 168.92 118.76 168.88 118.43 168.85 C118.10 168.82 117.77 168.79 117.44 168.77 C117.11 168.74 116.78 168.72 116.46 168.71 C116.14 168.70 115.81 168.69 115.49 168.69 C115.17 168.69 114.86 168.70 114.54 168.71 C114.23 168.72 113.92 168.75 113.62 168.78 C113.31 168.81 113.01 168.85 112.71 168.90 C112.42 168.95 112.12 169.01 111.84 169.09 C111.55 169.16 111.27 169.25 110.99 169.34 C110.72 169.44 110.45 169.55 110.19 169.68 C109.93 169.80 109.67 169.94 109.42 170.09 C109.17 170.24 108.99 170.35 108.70 170.60 C108.40 170.85 107.89 171.35 107.66 171.59 C107.42 171.83 107.42 171.87 107.30 172.02 C107.18 172.18 107.06 172.33 106.94 172.50 C106.82 172.66 106.70 172.83 106.59 173.01 C106.47 173.18 106.35 173.36 106.23 173.54 C106.12 173.73 106.00 173.92 105.89 174.11 C105.77 174.30 105.65 174.49 105.54 174.69 C105.42 174.88 105.31 175.08 105.20 175.28 C105.08 175.48 104.97 175.69 104.86 175.89 C104.74 176.09 104.63 176.29 104.52 176.50 C104.41 176.70 104.29 176.90 104.18 177.11 C104.07 177.31 103.96 177.51 103.85 177.71 C103.74 177.91 103.63 178.11 103.52 178.30 C103.41 178.50 103.30 178.69 103.20 178.88 C103.09 179.07 102.98 179.25 102.87 179.44 C102.77 179.62 102.66 179.79 102.55 179.97 C102.45 180.14 102.34 180.31 102.24 180.47 C102.13 180.63 102.03 180.78 101.92 180.93 C101.82 181.08 101.71 181.22 101.61 181.35 C101.51 181.49 101.40 181.61 101.30 181.73 C101.20 181.85 101.10 181.96 101.00 182.06 C100.90 182.16 100.80 182.25 100.70 182.33 C100.60 182.41 100.50 182.48 100.40 182.54 C100.30 182.60 100.33 182.64 100.10 182.69 C99.87 182.73 98.86 182.77 99.01 182.79 C99.16 182.81 100.84 182.81 100.99 182.79 C101.14 182.77 100.13 182.73 99.90 182.69 C99.67 182.64 99.70 182.60 99.60 182.54 C99.50 182.48 99.40 182.41 99.30 182.33 C99.20 182.25 99.10 182.16 99.00 182.06 C98.90 181.96 98.80 181.85 98.70 181.73 C98.60 181.61 98.49 181.49 98.39 181.35 C98.29 181.22 98.18 181.08 98.08 180.93 C97.97 180.78 97.87 180.63 97.76 180.47 C97.66 180.31 97.55 180.14 97.45 179.97 C97.34 179.79 97.23 179.62 97.13 179.44 C97.02 179.25 96.91 179.07 96.80 178.88 C96.70 178.69 96.59 178.50 96.48 178.30 C96.37 178.11 96.26 177.91 96.15 177.71 C96.04 177.51 95.93 177.31 95.82 177.11 C95.71 176.90 95.59 176.70 95.48 176.50 C95.37 176.29 95.26 176.09 95.14 175.89 C95.03 175.69 94.92 175.48 94.80 175.28 C94.69 175.08 94.58 174.88 94.46 174.69 C94.35 174.49 94.23 174.30 94.11 174.11 C94.00 173.92 93.88 173.73 93.77 173.54 C93.65 173.36 93.53 173.18 93.41 173.01 C93.30 172.83 93.18 172.66 93.06 172.50 C92.94 172.33 92.82 172.18 92.70 172.02 C92.58 171.87 92.58 171.83 92.34 171.59 C92.11 171.35 91.60 170.85 91.30 170.60 C91.01 170.35 90.83 170.24 90.58 170.09 C90.33 169.94 90.07 169.80 89.81 169.68 C89.55 169.55 89.28 169.44 89.01 169.34 C88.73 169.25 88.45 169.16 88.16 169.09 C87.88 169.01 87.58 168.95 87.29 168.90 C86.99 168.85 86.69 168.81 86.38 168.78 C86.08 168.75 85.77 168.72 85.46 168.71 C85.14 168.70 84.83 168.69 84.51 168.69 C84.19 168.69 83.86 168.70 83.54 168.71 C83.22 168.72 82.89 168.74 82.56 168.77 C82.23 168.79 81.90 168.82 81.57 168.85 C81.24 168.88 80.91 168.92 80.58 168.96 C80.25 168.99 79.91 169.03 79.58 169.08 C79.25 169.12 78.92 169.16 78.59 169.20 C78.26 169.24 77.92 169.29 77.60 169.33 C77.27 169.37 76.94 169.41 76.62 169.44 C76.29 169.48 75.97 169.52 75.65 169.55 C75.33 169.58 75.01 169.61 74.70 169.63 C74.39 169.65 74.08 169.67 73.77 169.68 C73.47 169.70 73.16 169.70 72.87 169.70 C72.57 169.70 72.28 169.70 71.99 169.68 C71.70 169.66 71.42 169.64 71.15 169.61 C70.87 169.58 70.72 169.57 70.34 169.48 C69.96 169.39 69.21 169.17 68.86 169.05 C68.50 168.93 68.41 168.87 68.20 168.77 C67.99 168.67 67.79 168.56 67.60 168.45 C67.40 168.34 67.22 168.22 67.04 168.10 C66.87 167.97 66.70 167.85 66.54 167.71 C66.37 167.58 66.22 167.44 66.08 167.30 C65.93 167.16 65.79 167.01 65.66 166.86 C65.53 166.70 65.40 166.55 65.28 166.39 C65.16 166.22 65.05 166.06 64.94 165.89 C64.84 165.72 64.73 165.55 64.64 165.37 C64.54 165.20 64.46 165.02 64.37 164.83 C64.29 164.65 64.21 164.46 64.13 164.28 C64.06 164.09 63.99 163.89 63.92 163.70 C63.86 163.51 63.80 163.31 63.74 163.11 C63.68 162.91 63.63 162.71 63.58 162.51 C63.53 162.30 63.49 162.10 63.45 161.89 C63.40 161.68 63.37 161.47 63.33 161.26 C63.29 161.05 63.26 160.84 63.23 160.63 C63.20 160.42 63.17 160.21 63.14 159.99 C63.12 159.78 63.09 159.56 63.07 159.35 C63.05 159.13 63.03 158.92 63.01 158.70 C62.99 158.49 62.97 158.27 62.95 158.06 C62.93 157.84 62.91 157.63 62.90 157.41 C62.88 157.20 62.85 157.06 62.85 156.77 C62.85 156.49 62.83 155.96 62.90 155.72 C62.97 155.47 63.10 155.44 63.25 155.30 C63.41 155.16 63.60 155.02 63.83 154.88 C64.06 154.74 64.32 154.61 64.62 154.47 C64.91 154.33 65.23 154.20 65.58 154.06 C65.93 153.93 66.32 153.79 66.71 153.66 C67.11 153.52 67.54 153.39 67.98 153.25 C68.43 153.12 68.89 152.98 69.37 152.85 C69.84 152.71 70.34 152.58 70.84 152.45 C71.35 152.31 71.87 152.18 72.39 152.05 C72.92 151.91 73.45 151.78 73.99 151.65 C74.52 151.51 75.07 151.38 75.61 151.24 C76.15 151.11 76.70 150.98 77.23 150.84 C77.77 150.71 78.31 150.57 78.84 150.44 C79.36 150.31 79.89 150.17 80.40 150.04 C80.91 149.90 81.41 149.76 81.90 149.63 C82.38 149.49 82.85 149.36 83.30 149.22 C83.76 149.08 84.19 148.94 84.60 148.81 C85.01 148.67 85.41 148.53 85.77 148.39 C86.13 148.25 86.47 148.11 86.78 147.97 C87.09 147.83 87.37 147.69 87.61 147.54 C87.86 147.40 88.07 147.26 88.24 147.11 C88.42 146.97 88.56 146.83 88.65 146.68 C88.75 146.53 88.88 146.55 88.82 146.24 C88.75 145.93 88.40 145.22 88.25 144.80 C88.09 144.38 87.99 144.10 87.88 143.73 C87.77 143.36 87.68 142.97 87.60 142.58 C87.52 142.18 87.45 141.77 87.39 141.35 C87.33 140.94 87.29 140.51 87.25 140.07 C87.21 139.63 87.18 139.19 87.16 138.73 C87.13 138.28 87.12 137.82 87.11 137.35 C87.10 136.88 87.10 136.41 87.09 135.93 C87.09 135.45 87.10 134.97 87.10 134.48 C87.11 134.00 87.11 133.51 87.12 133.02 C87.13 132.52 87.14 132.03 87.14 131.54 C87.15 131.04 87.15 130.55 87.15 130.05 C87.15 129.56 87.15 129.07 87.14 128.58 C87.13 128.09 87.12 127.60 87.10 127.11 C87.08 126.63 87.06 126.15 87.02 125.67 C86.98 125.20 86.94 124.73 86.89 124.26 C86.83 123.80 86.77 123.34 86.69 122.89 C86.62 122.44 86.53 122.00 86.43 121.56 C86.32 121.13 86.21 120.71 86.08 120.30 C85.94 119.88 85.80 119.48 85.63 119.09 C85.47 118.70 85.29 118.32 85.09 117.96 C84.88 117.59 84.67 117.24 84.42 116.90 C84.18 116.57 83.92 116.24 83.64 115.94 C83.35 115.63 83.15 115.38 82.72 115.07 C82.28 114.77 81.49 114.29 81.02 114.11 C80.55 113.92 80.34 114.00 79.89 113.96 C79.43 113.92 78.90 113.88 78.30 113.85 C77.70 113.82 77.03 113.80 76.30 113.78 C75.57 113.77 74.77 113.75 73.92 113.75 C73.07 113.74 72.16 113.73 71.21 113.73 C70.26 113.73 69.26 113.73 68.22 113.74 C67.18 113.74 66.09 113.75 64.98 113.76 C63.87 113.76 62.71 113.77 61.54 113.78 C60.36 113.79 59.15 113.80 57.93 113.80 C56.71 113.81 55.46 113.82 54.20 113.82 C52.95 113.82 51.67 113.83 50.40 113.82 C49.13 113.82 47.84 113.82 46.56 113.81 C45.28 113.80 44.00 113.79 42.73 113.77 C41.46 113.75 40.19 113.72 38.95 113.69 C37.70 113.66 36.46 113.62 35.26 113.58 C34.05 113.53 32.86 113.48 31.70 113.42 C30.54 113.36 29.41 113.29 28.32 113.21 C27.22 113.13 26.16 113.04 25.15 112.95 C24.14 112.85 23.16 112.74 22.24 112.61 C21.33 112.49 20.45 112.36 19.64 112.21 C18.83 112.07 18.07 111.91 17.38 111.74 C16.69 111.56 16.06 111.38 15.51 111.18 C14.96 110.97 14.56 110.87 14.06 110.53 C13.57 110.18 12.86 109.46 12.52 109.11 C12.18 108.75 12.19 108.65 12.04 108.42 C11.89 108.19 11.75 107.96 11.63 107.73 C11.50 107.50 11.39 107.26 11.29 107.03 C11.18 106.80 11.09 106.56 11.01 106.32 C10.93 106.09 10.86 105.85 10.80 105.61 C10.74 105.38 10.69 105.14 10.64 104.90 C10.60 104.66 10.56 104.42 10.53 104.18 C10.50 103.94 10.48 103.70 10.47 103.46 C10.45 103.22 10.44 102.98 10.44 102.74 C10.44 102.51 10.44 102.27 10.44 102.03 C10.45 101.79 10.46 101.55 10.48 101.31 C10.49 101.07 10.51 100.83 10.53 100.59 C10.55 100.36 10.58 100.12 10.60 99.88 C10.63 99.64 10.66 99.41 10.69 99.17 C10.72 98.94 10.75 98.71 10.78 98.47 C10.80 98.24 10.84 98.01 10.86 97.78 C10.89 97.55 10.92 97.32 10.95 97.09 C10.97 96.87 11.00 96.64 11.02 96.42 C11.04 96.19 11.06 95.97 11.08 95.75 C11.09 95.53 11.10 95.31 11.11 95.09 C11.12 94.88 11.12 94.66 11.12 94.45 C11.12 94.24 11.11 94.03 11.10 93.82 C11.08 93.61 11.04 93.57 11.03 93.20 C11.03 92.84 10.94 92.07 11.09 91.63 C11.25 91.19 11.56 90.93 11.94 90.56 C12.33 90.19 12.83 89.80 13.42 89.40 C14.01 89.00 14.70 88.59 15.46 88.16 C16.23 87.74 17.09 87.30 18.01 86.86 C18.94 86.41 19.95 85.96 21.01 85.49 C22.08 85.03 23.22 84.56 24.41 84.08 C25.59 83.61 26.84 83.12 28.13 82.64 C29.42 82.15 30.76 81.66 32.13 81.17 C33.49 80.68 34.91 80.18 36.34 79.69 C37.76 79.20 39.23 78.70 40.70 78.21 C42.17 77.72 43.67 77.22 45.16 76.74 C46.66 76.25 48.17 75.76 49.66 75.29 C51.16 74.81 52.66 74.33 54.14 73.87 C55.62 73.40 57.09 72.94 58.54 72.49 C59.98 72.04 61.41 71.60 62.79 71.17 C64.18 70.74 65.54 70.32 66.85 69.92 C68.16 69.51 69.44 69.12 70.66 68.74 C71.87 68.36 73.04 68.00 74.14 67.65 C75.24 67.30 76.29 66.97 77.25 66.66 C78.22 66.35 79.12 66.05 79.93 65.78 C80.74 65.50 81.48 65.25 82.12 65.02 C82.75 64.79 83.31 64.58 83.75 64.39 C84.20 64.21 84.55 64.40 84.78 63.91 C85.00 63.42 85.07 62.25 85.13 61.47 C85.18 60.69 85.12 60.01 85.12 59.25 C85.12 58.50 85.12 57.72 85.12 56.94 C85.12 56.16 85.13 55.36 85.14 54.55 C85.14 53.75 85.16 52.93 85.17 52.11 C85.19 51.29 85.21 50.46 85.25 49.62 C85.28 48.79 85.31 47.95 85.36 47.11 C85.40 46.27 85.45 45.43 85.52 44.59 C85.58 43.75 85.65 42.91 85.74 42.08 C85.82 41.24 85.92 40.41 86.02 39.59 C86.13 38.76 86.25 37.94 86.39 37.14 C86.52 36.33 86.67 35.53 86.83 34.75 C87.00 33.96 87.17 33.19 87.37 32.43 C87.57 31.67 87.78 30.92 88.01 30.20 C88.24 29.48 88.49 28.77 88.76 28.08 C89.03 27.39 89.32 26.72 89.63 26.08 C89.94 25.44 90.27 24.82 90.62 24.22 C90.98 23.63 91.35 23.06 91.75 22.52 C92.15 21.99 92.58 21.47 93.03 21.00 C93.48 20.52 93.95 20.07 94.45 19.66 C94.96 19.25 95.49 18.87 96.04 18.53 C96.60 18.18 97.19 17.88 97.80 17.62 C98.47 17.03 99.22 16.48 100.00 16.40 Z`;
+
+const MAX_TOKEN_LEN = 25;
+const LONG_TEXT_THRESHOLD = 16; // 16~25 字符视为长字符串飞机
+
+function splitTokenSmart(token, maxLen = MAX_TOKEN_LEN) {
+  const out = [];
+  const breakChars = /[;,.:()\[\]{}=+\-*\/<>!?&|]/;
+  let rest = token;
+  while (rest.length > maxLen) {
+    let cut = maxLen;
+    // 优先在靠近 25 字符的位置按代码符号截断，避免机械硬切。
+    for (let i = maxLen - 1; i >= Math.max(8, maxLen - 8); i--) {
+      if (breakChars.test(rest[i])) { cut = i + 1; break; }
+    }
+    out.push(rest.slice(0, cut));
+    rest = rest.slice(cut);
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
+function build() {
+  words = []; nextWait = 0; totalChars = 0;
+  
+  let cleanCode = CODE.replace(/\/\*[\s\S]*?\*\//g, '');
+  cleanCode = cleanCode.replace(/\/\/.*$/gm, '');
+  cleanCode = cleanCode.replace(/[^\x20-\x7E\r\n\t]/g, '');
+
+  let tokens = [];
+  const parts = cleanCode.split(/[\s\n\t\r]+/);
+  for (const p of parts) {
+    if (!p) continue;
+    tokens.push(...splitTokenSmart(p));
+  }
+
+  // 尽量把孤立的 1 字符代码符号并入相邻短 token，但绝不超过 25 字符。
+  let merged = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.length === 1) {
+      if (merged.length > 0 && merged[merged.length - 1].length + 1 <= MAX_TOKEN_LEN) {
+        merged[merged.length - 1] += t;
+      } else if (i + 1 < tokens.length && t.length + tokens[i + 1].length <= MAX_TOKEN_LEN) {
+        tokens[i + 1] = t + tokens[i + 1];
+      } else {
+        merged.push(t);
+      }
+    } else {
+      merged.push(t);
+    }
+  }
+
+  if (merged.length === 0) merged = ["EMPTY", "CODE", "FOUND"];
+
+  for (const text of merged) {
+    const w = {
+      text, len: text.length, hp: text.length, pos: 0, x: 0, y: 0,
+      state: 'wait', el: null, charEls: [], itemReward: null, isFailed: false,
+      isLongText: text.length >= LONG_TEXT_THRESHOLD
+    };
+    words.push(w); totalChars += w.len;
+  }
+}
+
+function render() {
+  game.querySelectorAll('.word').forEach(e => e.remove());
+  const svgNS = 'http://www.w3.org/2000/svg';
+  for (const w of words) {
+    w.step = STEP;
+    const planeW = Math.max((w.len + 3.0) * STEP, 2.8 * FH);
+    const planeH = planeW / PLANE_ASPECT;
+    w.w = planeW; w.ph = planeH;
+    const el = document.createElement('div'); el.className = 'word';
+    el.style.fontSize = FS + 'px';
+    el.style.setProperty('--cw', STEP + 'px'); el.style.setProperty('--len', String(w.len));
+    el.style.setProperty('--u', FH + 'px'); el.style.setProperty('--fs', FS + 'px');
+    el.style.setProperty('--w', planeW + 'px');
+    const plane = document.createElement('div'); plane.className = 'plane';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'plane-svg'); svg.setAttribute('viewBox', '0 0 200 200'); svg.setAttribute('preserveAspectRatio', 'none');
+    const p = document.createElementNS(svgNS, 'path'); p.setAttribute('d', PLANE_PATH);
+    svg.appendChild(p); plane.appendChild(svg);
+    const letters = document.createElement('div'); letters.className = 'wletters';
+    w.charEls = [];
+    for (let i = 0; i < w.len; i++) {
+      const s = document.createElement('span'); const isSpace = w.text[i] === ' ';
+      s.className = 'wchar' + (isSpace ? ' space' : '');
+      s.textContent = isSpace ? '␣' : w.text[i];
+      letters.appendChild(s); w.charEls.push(s);
+    }
+    plane.appendChild(letters); el.appendChild(plane);
+    w.planeEl = plane; plane.style.setProperty('--planescale', '1'); w.scale = 1;
+    updatePlaneSize(w);
+    el.style.left = w.x + 'px'; el.style.top = (w.y - w.ph) + 'px';
+    el.style.display = (w.state === 'falling') ? '' : 'none';
+    w.el = el; game.appendChild(el);
+  }
+}
+
+function updateRewardIconScale(w) {
+  if (!w || !w.planeEl) return;
+  const icon = w.planeEl.querySelector('.plane-reward-icon');
+  if (!icon) return;
+  const scale = Math.max(0.5, Math.min(1, w.scale || 1));
+  // 飞机是围绕中心缩小的，因此机头会向飞机中心收缩；道具同步向中心移动。
+  const bottomPct = 13 + (1 - scale) * 37;
+  icon.style.setProperty('--reward-bottom', bottomPct.toFixed(2) + '%');
+  icon.style.setProperty('--reward-size', (28 * scale).toFixed(1) + 'px');
+  icon.style.setProperty('--reward-font', (17 * scale).toFixed(1) + 'px');
+  icon.style.setProperty('--reward-border', Math.max(0.6, scale).toFixed(2) + 'px');
+  icon.style.setProperty('--reward-glow', (8 * scale).toFixed(1) + 'px');
+}
+
+function updatePlaneSize(w) {
+  const scale = 0.5 + 0.5 * (w.hp / w.len); w.scale = scale;
+  if (w.planeEl) w.planeEl.style.setProperty('--planescale', scale.toFixed(3));
+  w.step = STEP * scale;
+  if (w.el) w.el.style.setProperty('--cw', w.step + 'px');
+  updateRewardIconScale(w);
+}
+
+function initBoard() {
+  build(); layout(); render();
+  wIdx = 0; nextWait = 0; typedCount = 0;
+  score = 0; combo = 0; maxCombo = 0; hits = 0; miss = 0; kills = 0;
+  playerHP = playerMaxHP; targetCharEl = null;
+  
+  itemF2Owned = false;
+  itemF3Owned = false;
+  itemF4Owned = false;
+  itemF5Owned = false;
+  itemF6Owned = false;
+  itemRewardGap = 99;
+
+  updatePlayerHP(); resetEnergy(); updateHUD();
+}
+
+function updatePlayerHP() {
+  const fill = $('#playerHPFill');
+  if (fill) { fill.style.width = (Math.max(0, playerHP / playerMaxHP) * 100) + '%'; fill.style.background = '#46c08a'; }
+  const txt = $('#hpText');
+  if (txt) { txt.textContent = Math.max(0, playerHP) + '/' + playerMaxHP; }
+}
+
+function renderEnergyBar() {
+  const bar = $('#energyBar'); if (!bar) return;
+  bar.innerHTML = '';
+  for (let i = 0; i < MAX_ENERGY; i++) {
+    const cell = document.createElement('div'); cell.className = 'energy-cell';
+    if (i < energy) cell.classList.add(energy >= MAX_ENERGY ? 'full' : 'filled');
+    bar.appendChild(cell);
+  }
+  const label = $('#energyLabel');
+  if (label) label.style.display = 'none';
+  
+  if (itemModeEnabled) {
+    const f1 = $('#item-f1');
+    if (f1) {
+      if (energy >= MAX_ENERGY) {
+        f1.classList.remove('disabled');
+        f1.classList.remove('used');
+      } else {
+        f1.classList.add('disabled');
+      }
+    }
+  }
+}
+
+function addEnergy(fromX, fromY) {
+  if (!itemModeEnabled || energy >= MAX_ENERGY) return; 
+  if (fromX == null) { energy++; renderEnergyBar(); return; }
+  const bar = $('#energyBar'); if (!bar) { energy++; renderEnergyBar(); return; }
+  const rect = bar.getBoundingClientRect(), gameRect = game.getBoundingClientRect();
+  const targetX = rect.left - gameRect.left + rect.width / 2 - 7, targetY = rect.top - gameRect.top + rect.height / 2 - 7;
+  const orb = document.createElement('div'); orb.className = 'energy-orb';
+  orb.style.left = (fromX - 7) + 'px'; orb.style.top = (fromY - 7) + 'px'; orb.style.transform = 'scale(1)';
+  game.appendChild(orb);
+  requestAnimationFrame(() => { orb.style.left = targetX + 'px'; orb.style.top = targetY + 'px'; orb.style.transform = 'scale(.5)'; });
+  setTimeout(() => {
+    if (orb.parentNode) orb.remove();
+    if (energy < MAX_ENERGY) { energy++; renderEnergyBar(); if (energy >= MAX_ENERGY) energyFullSfx(); else energyCollectSfx(); }
+  }, 1100);
+}
+
+function resetEnergy() { energy = 0; renderEnergyBar(); }
+
+function fireMegaLaser() {
+  if (!running || !itemModeEnabled || energy < MAX_ENERGY) return;
+  normalizeIdx();
+  let target = (wIdx >= 0) ? words[wIdx] : null;
+  if (!target || target.state !== 'falling' || target.isFailed) return;
+  const ccx = target.x + target.w / 2, ccy = getTextCenterY(target), ang = angleTo(ccx, ccy) * Math.PI / 180;
+  barrel.style.transform = `rotate(${angleTo(ccx, ccy)}deg)`;
+  const tipX = cx + BARREL_LEN * Math.sin(ang), tipY = cy - BARREL_LEN * Math.cos(ang), d = Math.hypot(ccx - tipX, ccy - tipY);
+  const ml = document.createElement('div'); ml.className = 'mega-laser';
+  ml.style.left = tipX + 'px'; ml.style.top = (tipY - 4) + 'px'; ml.style.width = d + 'px';
+  ml.style.transform = `rotate(${Math.atan2(ccy - tipY, ccx - tipX) * 180 / Math.PI}deg)`;
+  game.appendChild(ml); setTimeout(() => { if (ml.parentNode) ml.remove(); }, 500);
+  megaLaserSfx();
+  typedCount += (target.len - target.pos); target.hp = 0; 
+  target._megaKilled = true; 
+  killWord(target, true); resetEnergy();
+  
+  const el = $('#item-f1'); if (el) { el.classList.add('used'); setTimeout(() => el.classList.remove('used'), 350); }
+  showItemMsg("导弹发射！");
+}
+
+function reposition() {
+  for (const w of words) {
+    if (!w.el) continue;
+    w.el.style.fontSize = (w.fs || FS) + 'px';
+    if (w.state === 'falling') {
+      const wWidth = w.w;
+      if (w.x < 20) w.x = 20; if (w.x > innerWidth - 20 - wWidth) w.x = Math.max(20, innerWidth - 20 - wWidth);
+      w.el.style.left = w.x + 'px'; w.el.style.top = (w.y - w.ph) + 'px';
+    }
+  }
+}
+
+function angleTo(tx, ty) { return Math.atan2(tx - cx, cy - ty) * 180 / Math.PI; }
+
+// 飞机的纵向逻辑统一以文字区域为核心。
+// .wletters 的中心位于飞机容器高度约 51% 处，因此用文字中心坐标来决定出生、锁定、层级和越线。
+const TEXT_CENTER_RATIO = 0.51;
+function getTextCenterY(w) {
+  if (!w) return -Infinity;
+  return w.y - w.ph + w.ph * TEXT_CENTER_RATIO;
+}
+function setTextCenterY(w, textY) {
+  if (!w) return;
+  w.y = textY + w.ph * (1 - TEXT_CENTER_RATIO);
+}
+function isTextVisible(w) {
+  if (!w || !w.el) return false;
+  const letters = w.el.querySelector('.wletters');
+  if (letters) {
+    const r = letters.getBoundingClientRect();
+    return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+  }
+  const ty = getTextCenterY(w);
+  return ty > -FS && ty < innerHeight + FS;
+}
+
+// 改为使用 DOM 坐标实时测量以获取字符的精确视觉位置
+function charVisualPos(w, i) {
+  const ch = w.charEls[i];
+  if (ch) {
+    const chRect = ch.getBoundingClientRect(), gameRect = game.getBoundingClientRect();
+    return { x: chRect.left - gameRect.left + chRect.width / 2, y: chRect.top - gameRect.top + chRect.height / 2 };
+  }
+  return { x: w.x + w.w / 2, y: getTextCenterY(w) };
+}
+
+function ac() {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(freq, dur, type = 'square', vol = 0.06, slideTo = null) {
+  if (!soundOn) return; const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.setValueAtTime(freq, a.currentTime);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + dur);
+  g.gain.setValueAtTime(vol, a.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur + 0.02);
+}
+function melody(notes, step = 0.12, type = 'square', vol = 0.06) {
+  if (!soundOn) return; notes.forEach((f, i) => setTimeout(() => tone(f, step * 0.9, type, vol), i * step * 1000));
+}
+function hitSfx()  { tone(1400, 0.08, 'square', 0.05, 500); }
+function wrongSfx() { tone(130, 0.18, 'sawtooth', 0.06); }
+function missSfx() { tone(80, 0.25, 'sine', 0.09); }
+function explodeSfx() {
+  if (!soundOn) return; const a = ac(); if (!a) return;
+  const dur = 0.32, buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate), data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  const src = a.createBufferSource(); src.buffer = buf; const g = a.createGain();
+  g.gain.setValueAtTime(0.2, a.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 950;
+  src.connect(lp); lp.connect(g); g.connect(a.destination); src.start(); src.stop(a.currentTime + dur);
+}
+function winSfx()  { melody([523, 659, 784, 1047], 0.12, 'square', 0.05); }
+function loseSfx() { melody([392, 330, 262, 196], 0.16, 'sawtooth', 0.06); }
+function retreatSfx() { melody([880, 740, 620], 0.07, 'sawtooth', 0.04); }
+function energyCollectSfx() { tone(660, 0.1, 'sine', 0.05, 990); }
+function energyFullSfx() { melody([523, 659, 784, 1047], 0.08, 'triangle', 0.06); }
+function megaLaserSfx() { tone(200, 0.3, 'sawtooth', 0.08, 1200); setTimeout(() => tone(800, 0.15, 'square', 0.07, 200), 200); }
+
+const BARREL_LEN = 50;
+function fire(tx, ty, isWrong) {
+  const ang = angleTo(tx, ty) * Math.PI / 180; barrel.style.transform = `rotate(${angleTo(tx, ty)}deg)`;
+  const tipX = cx + BARREL_LEN * Math.sin(ang), tipY = cy - BARREL_LEN * Math.cos(ang), d = Math.hypot(tx - tipX, ty - tipY);
+  const l = document.createElement('div'); l.className = 'laser' + (isWrong ? ' wrong' : '');
+  l.style.left = tipX + 'px'; l.style.top = (tipY - 1) + 'px'; l.style.width = d + 'px';
+  l.style.transform = `rotate(${Math.atan2(ty - tipY, tx - tipX) * 180 / Math.PI}deg)`;
+  game.appendChild(l); setTimeout(() => l.remove(), 180);
+  if (isWrong) wrongSfx(); else hitSfx();
+}
+
+// 根据字符串长度计算道具掉落概率：最低档 10%，每提升一个长度档位增加 10%。
+// 同时配合 itemRewardGap，避免道具飞机连续出现。
+function getItemDropChance(len) {
+  if (len <= 2) return 0.10;  // 1-2 字符：10%
+  if (len <= 4) return 0.20;  // 3-4 字符：20%
+  if (len <= 6) return 0.30;  // 5-6 字符：30%
+  if (len <= 9) return 0.40;  // 7-9 字符：40%
+  if (len <= 12) return 0.50; // 10-12 字符：50%
+  if (len <= 15) return 0.60; // 13-15 字符：60%
+  if (len <= 20) return 0.70; // 16-20 字符：70%
+  return 0.80;                // 21-25 字符：80%
+}
+
+function activate() {
+  let f = 0;
+  for (const w of words) if (w.state === 'falling') f++;
+
+  let longOnScreen = words.some(w => {
+    if (!w.isLongText || !w.el || !w.el.parentNode || w.el.style.display === 'none') return false;
+    if (w.state === 'wait' || w.state === 'gone' || w.state === 'dead') return false;
+    // 长文本从排队进入屏幕前就占用长文本通道，直到它的文字真正离开屏幕底部，避免第二架长文本提前出现。
+    return getTextCenterY(w) < innerHeight + FS;
+  });
+
+  while (f < MAXFALL && nextWait < words.length) {
+    // 若屏幕上已有长字符串，优先从后续等待队列里找短字符串补位。
+    // 找不到短字符串时暂停生成，直到当前长字符串离开屏幕。
+    let spawnIndex = nextWait;
+    if (longOnScreen && words[spawnIndex] && words[spawnIndex].isLongText) {
+      spawnIndex = -1;
+      for (let i = nextWait + 1; i < words.length; i++) {
+        if (words[i].state === 'wait' && !words[i].isLongText) { spawnIndex = i; break; }
+      }
+      if (spawnIndex < 0) break;
+    }
+
+    // 将选中的待出场飞机换到队首，保持 nextWait 仍是单向游标。
+    if (spawnIndex !== nextWait) {
+      const tmp = words[nextWait];
+      words[nextWait] = words[spawnIndex];
+      words[spawnIndex] = tmp;
+    }
+
+    const w = words[nextWait++];
+    if (!w || w.state !== 'wait') continue;
+    if (w.isLongText && longOnScreen) { nextWait--; break; }
+
+    w.state = 'falling'; w.el.style.display = '';
+    const wWidth = w.w, MIN_GAP = 30, xMin = 20, xMax = Math.max(xMin + 10, innerWidth - 20 - wWidth);
+    let bestX = xMin + Math.random() * (xMax - xMin), bestOverlap = Infinity;
+    for (let attempt = 0; attempt < 15; attempt++) {
+      const x = xMin + Math.random() * (xMax - xMin); let overlap = 0;
+      for (const o of words) {
+        if (o === w || o.state !== 'falling') continue;
+        const oLeft = o.x, oRight = o.x + o.w, nLeft = x, nRight = x + wWidth;
+        const ov = Math.min(oRight + MIN_GAP, nRight) - Math.max(oLeft - MIN_GAP, nLeft);
+        if (ov > 0) overlap += ov;
+      }
+      if (overlap === 0) { bestX = x; bestOverlap = 0; break; }
+      if (overlap < bestOverlap) { bestOverlap = overlap; bestX = x; }
+    }
+    w.x = bestX;
+    // 关键：按文字中心安排纵向队列，而不是按飞机底部。
+    // 第一个待输入文本最靠前，后续文本依次排在它上方；飞机大小不会改变输入先后。
+    const spawnTextY = -24 - f * Math.max(90, SPEED * 1.5);
+    setTextCenterY(w, spawnTextY);
+    w.el.style.left = w.x + 'px'; w.el.style.top = (w.y - w.ph) + 'px';
+
+    if (w.isLongText) longOnScreen = true;
+    
+    if (itemModeEnabled) {
+      // 每生成一架飞机都累积间隔；只有至少隔过 2 架普通飞机后，才允许再次参与掉落判定。
+      itemRewardGap++;
+      const dropChance = getItemDropChance(w.len);
+      const canRollReward = itemRewardGap >= 3 && Math.random() < dropChance;
+
+      if (canRollReward) {
+        let missing = [];
+        if (!itemF2Owned) missing.push('F2');
+        if (!itemF3Owned) missing.push('F3');
+        if (!itemF4Owned) missing.push('F4');
+        if (!itemF5Owned) missing.push('F5');
+        if (!itemF6Owned) missing.push('F6');
+
+        // 屏幕上已经携带的同类道具不重复出现。
+        const carried = words.filter(x => x.state === 'falling' && x.itemReward).map(x => x.itemReward);
+        const available = missing.filter(item => !carried.includes(item));
+
+        if (available.length) {
+          // 在当前可掉落道具中随机选择，避免总是按 F2→F6 固定顺序出现。
+          const item = available[Math.floor(Math.random() * available.length)];
+          w.itemReward = item;
+          itemRewardGap = 0;
+
+          const iconDiv = document.createElement('div');
+          iconDiv.className = 'plane-reward-icon';
+          iconDiv.textContent = item === 'F2' ? '⏳' : (item === 'F3' ? '💣' : (item === 'F4' ? '💨' : (item === 'F5' ? '🤖' : '♥')));
+          if (item === 'F6') {
+            iconDiv.style.color = '#ff4d67';
+            iconDiv.style.textShadow = '0 0 8px rgba(255,77,103,.85)';
+            iconDiv.style.borderColor = '#ff4d67';
+          }
+          w.planeEl.appendChild(iconDiv);
+          updateRewardIconScale(w);
+        }
+      }
+    }
+    f++;
+  }
+}
+
+function updateHUD() {
+  scoreEl.textContent = score; comboEl.textContent = combo; hitsTakenEl.textContent = miss;
+  const pct = totalChars ? Math.floor(typedCount / totalChars * 100) : 0;
+  progEl.textContent = pct + '%';
+}
+
+let comboTimer = null;
+function showCombo(n) {
+  comboPop.innerHTML = `<span class="num">${n}</span><span class="lbl">连击</span>`;
+  comboPop.classList.remove('show'); void comboPop.offsetWidth; comboPop.classList.add('show');
+  if (comboTimer) clearTimeout(comboTimer); comboTimer = setTimeout(hideCombo, 1000);
+}
+function hideCombo() { comboPop.classList.remove('show'); if (comboTimer) { clearTimeout(comboTimer); comboTimer = null; } }
+
+function explode(x, y, color = '#ffd24a') {
+  for (let i = 0; i < 9; i++) {
+    const p = document.createElement('div'); p.className = 'particle';
+    if (color !== '#ffd24a') p.style.background = color;
+    const a = (Math.PI * 2 * i) / 9 + Math.random() * 0.4, d = 16 + Math.random() * 16;
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    p.style.setProperty('--dx', Math.cos(a) * d + 'px'); p.style.setProperty('--dy', Math.sin(a) * d + 'px');
+    game.appendChild(p); setTimeout(() => p.remove(), 520);
+  }
+}
+
+function bigExplode(x, y) {
+  const flash = document.createElement('div'); flash.className = 'explosion-flash';
+  flash.style.left = x + 'px'; flash.style.top = y + 'px'; game.appendChild(flash); setTimeout(() => flash.remove(), 320);
+  const sw = document.createElement('div'); sw.className = 'shockwave';
+  sw.style.left = x + 'px'; sw.style.top = y + 'px'; game.appendChild(sw); setTimeout(() => sw.remove(), 520);
+  const colors = ['#ffffff', '#ffd24a', '#ff8c2a', '#e05a3a', '#ffaa44'];
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div'); p.className = 'eparticle'; p.style.background = colors[i % colors.length];
+    const a = (Math.PI * 2 * i) / 18 + Math.random() * 0.3, d = 24 + Math.random() * 32;
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    p.style.setProperty('--dx', Math.cos(a) * d + 'px'); p.style.setProperty('--dy', Math.sin(a) * d + 'px');
+    game.appendChild(p); setTimeout(() => p.remove(), 620);
+  }
+  for (let i = 0; i < 8; i++) {
+    const d = document.createElement('div'); d.className = 'edebris'; d.style.background = colors[(i + 2) % colors.length];
+    const a = Math.random() * Math.PI * 2, dist = 40 + Math.random() * 45;
+    d.style.left = x + 'px'; d.style.top = y + 'px';
+    d.style.setProperty('--dx', Math.cos(a) * dist + 'px'); d.style.setProperty('--dy', Math.sin(a) * dist + 'px');
+    game.appendChild(d); setTimeout(() => d.remove(), 820);
+  }
+}
+
+
+// F3 专用轻量爆炸：避免对每架飞机创建完整 40 个字符碎片与大量粒子。
+function bombMiniExplode(x, y) {
+  const flash = document.createElement('div');
+  flash.className = 'explosion-flash';
+  flash.style.left = x + 'px'; flash.style.top = y + 'px';
+  flash.style.transform = 'translate(-50%, -50%) scale(.65)';
+  game.appendChild(flash);
+  setTimeout(() => { if (flash.parentNode) flash.remove(); }, 280);
+
+  const colors = ['#ffd24a', '#ff8c2a', '#e05a3a'];
+  for (let i = 0; i < 5; i++) {
+    const p = document.createElement('div');
+    p.className = 'eparticle'; p.style.background = colors[i % colors.length];
+    const a = (Math.PI * 2 * i) / 5 + Math.random() * 0.35;
+    const d = 18 + Math.random() * 22;
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    p.style.setProperty('--dx', Math.cos(a) * d + 'px');
+    p.style.setProperty('--dy', Math.sin(a) * d + 'px');
+    game.appendChild(p);
+    setTimeout(() => { if (p.parentNode) p.remove(); }, 560);
+  }
+}
+
+function bombKillWord(w, showMiniEffect) {
+  if (!w || w.state !== 'falling' || w.isFailed) return false;
+
+  let ccx = w.x + w.w / 2, ccy = getTextCenterY(w);
+  if (w._retreating && w.el) {
+    const rect = w.el.getBoundingClientRect(), gameRect = game.getBoundingClientRect();
+    ccx = rect.left - gameRect.left + rect.width / 2;
+    ccy = rect.top - gameRect.top + rect.height / 2;
+  }
+
+  w.state = 'dead'; w.hp = 0; w._megaKilled = true; kills++;
+  if (showMiniEffect) bombMiniExplode(ccx, ccy);
+
+  if (w.el) {
+    w.el.classList.remove('final-shaking', 'pre-explode', 'retreating');
+    w.el.classList.add('killed');
+    const el = w.el;
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 140);
+  }
+  if (targetCharEl && w.charEls.includes(targetCharEl)) {
+    targetCharEl.classList.remove('target'); targetCharEl = null;
+  }
+  return true;
+}
+
+// 统一目标判定：锁定当前画面可见、尚有字符需要输入、且离防线最近的飞机。
+// 即使该飞机已经输错并标红，也继续锁定它直到剩余字符输入完毕；标红只影响最终击落/奖励，不影响继续输入。
+function getAttackTarget() {
+  let best = null, bestTextY = -Infinity;
+  for (const w of words) {
+    if (w.state !== 'falling' || w.pos >= w.len || !w.el) continue;
+    // 只有文字区域真正进入画面后才允许锁定，避免大飞机机身先露出但文字仍在屏幕外。
+    if (!isTextVisible(w)) continue;
+    const ty = getTextCenterY(w);
+    if (!best || ty > bestTextY) { best = w; bestTextY = ty; }
+  }
+  return best;
+}
+
+function normalizeIdx() {
+  const target = getAttackTarget();
+  wIdx = target ? words.indexOf(target) : -1;
+}
+
+function correct(w) {
+  const p = charVisualPos(w, w.pos); fire(p.x, p.y);
+  const s = w.charEls[w.pos]; if (s) s.className = 'wchar done';
+  w.hp--; typedCount++; updatePlaneSize(w);
+  score += 10 + combo * 2; combo++; if (combo > maxCombo) maxCombo = combo; hits++;
+  if (combo >= 2) showCombo(combo);
+  w.pos++; 
+  // 只有未被标红的飞机完整敲完才会爆炸；如果已经标红，则不触发爆炸，让它空壳飘走
+  if (w.pos >= w.len) {
+    if (!w.isFailed) {
+      finishWord(w);
+    }
+  }
+}
+
+function killWord(w, byPlayer) {
+  const alreadyDead = (w.state === 'dead'); w.state = 'dead';
+  if (!alreadyDead) kills++;
+  let ccx, ccy;
+  if (w._retreating && w.el) {
+    const elRect = w.el.getBoundingClientRect(), gameRect = game.getBoundingClientRect();
+    ccx = elRect.left - gameRect.left + elRect.width / 2; ccy = elRect.top - gameRect.top + elRect.height / 2;
+  } else { ccx = w.x + w.w / 2; ccy = getTextCenterY(w); }
+  
+  // 纯手动击落且未出错的飞机才能触发奖励
+  let isManualKill = byPlayer && !w._megaKilled && !w._autoKilled && !w.isFailed;
+
+  if (isManualKill) setTimeout(() => addEnergy(ccx, ccy), 400);
+  if (byPlayer) { bigExplode(ccx, ccy); explodeSfx(); }
+  
+  if (isManualKill && w.itemReward) {
+    if (w.itemReward === 'F2') { itemF2Owned = true; $('#item-f2').className = 'item-box'; showItemMsg("获得道具: 时缓 (F2)"); }
+    if (w.itemReward === 'F3') { itemF3Owned = true; $('#item-f3').className = 'item-box'; showItemMsg("获得道具: 炸弹 (F3)"); }
+    if (w.itemReward === 'F4') { itemF4Owned = true; $('#item-f4').className = 'item-box'; showItemMsg("获得道具: 后退 (F4)"); }
+    if (w.itemReward === 'F5') { itemF5Owned = true; $('#item-f5').className = 'item-box'; showItemMsg("获得道具: 连击 (F5)"); }
+    if (w.itemReward === 'F6') { itemF6Owned = true; $('#item-f6').className = 'item-box heal-item'; showItemMsg("获得道具: 回复生命 (F6)"); }
+  }
+
+  if (w.el) {
+    w.el.classList.remove('final-shaking'); w.el.classList.remove('pre-explode'); w.el.classList.add('killed');
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789{}()[]<>=+-*/!@#$&';
+    for (let i = 0; i < 40; i++) {
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const el = document.createElement('div'); el.className = 'shard-char'; el.textContent = ch;
+      el.style.fontSize = Math.round(FS * 1.5) + 'px'; el.style.color = '#d6dae0';
+      const ox = ccx + (Math.random() - 0.5) * 30, oy = ccy + (Math.random() - 0.5) * 20;
+      el.style.left = ox + 'px'; el.style.top = oy + 'px';
+      const angle = Math.random() * Math.PI * 2, dist = 100 + Math.random() * 140;
+      el.style.setProperty('--dx', Math.cos(angle) * dist + 'px'); el.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      el.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+      game.appendChild(el); setTimeout(() => { if (el.parentNode) el.remove(); }, 1700);
+    }
+    const el = w.el; setTimeout(() => { if (el.parentNode) el.remove(); }, 200);
+  }
+  if (targetCharEl && w.charEls.includes(targetCharEl)) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+}
+
+// 只把“仍有字符需要处理”的飞机视为战斗目标。
+// 已经输完但因输错而无法击落的红色飞机只是残留空壳，不再阻塞最终结算。
+function hasPendingInput(w) {
+  if (!w) return false;
+  if (w.state === 'wait') return true;
+  return w.state === 'falling' && w.pos < w.len;
+}
+
+function hasOtherPlanes(currentW) {
+  for (const w of words) {
+    if (w === currentW) continue;
+    if (hasPendingInput(w)) return true;
+  }
+  return false;
+}
+
+function hasAnyPendingInput() {
+  return words.some(hasPendingInput);
+}
+
+function finishWord(w) {
+  if (w.hp <= 0) {
+    w.state = 'dead'; kills++;
+    if (w._retreating && w.el) {
+      const elRect = w.el.getBoundingClientRect(), gameRect = game.getBoundingClientRect();
+      w.y = elRect.bottom - gameRect.top; w._retreating = false;
+      w.el.classList.remove('retreating'); w.el.style.transitionDuration = ''; w.el.style.top = (w.y - w.ph) + 'px';
+    }
+    if (targetCharEl && w.charEls.includes(targetCharEl)) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+    if (!hasOtherPlanes(w)) {
+      reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+      if (w.el) w.el.classList.add('final-shaking');
+      setTimeout(() => { killWord(w, true); }, 1100);
+    } else {
+      reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+      if (w.el) w.el.classList.add('pre-explode');
+      setTimeout(() => { killWord(w, true); }, 500);
+    }
+  } else { w.state = 'passed'; if (w.el) w.el.classList.add('missed'); }
+}
+
+function cannonHit() {
+  if (!running) return;
+  explode(cx, cy, '#e05a5a');
+  game.classList.remove('shakeBig'); void game.offsetWidth; game.classList.add('shakeBig');
+  playerHP--; updatePlayerHP();
+  if (playerHP <= 0) {
+    running = false;
+    if (targetCharEl) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+    reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+    if (defenseLine) defenseLine.style.display = 'none';
+    hideCombo(); const cannon = $('#cannon');
+    bigExplode(cx, cy); explodeSfx();
+    const chars2 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789{}()[]<>=+-*/!@#$&';
+    for (let i = 0; i < 30; i++) {
+      const ch = chars2[Math.floor(Math.random() * chars2.length)];
+      const el = document.createElement('div'); el.className = 'shard-char'; el.textContent = ch;
+      el.style.fontSize = Math.round(FS * 1.5) + 'px'; el.style.color = '#d6dae0';
+      el.style.left = cx + (Math.random() - 0.5) * 30 + 'px'; el.style.top = cy + (Math.random() - 0.5) * 20 + 'px';
+      const angle = Math.random() * Math.PI * 2, dist = 80 + Math.random() * 120;
+      el.style.setProperty('--dx', Math.cos(angle) * dist + 'px'); el.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      el.style.setProperty('--rot', (Math.random() * 720 - 360) + 'deg');
+      game.appendChild(el); setTimeout(() => { if (el.parentNode) el.remove(); }, 1700);
+    }
+    if (cannon) cannon.classList.add('exploding');
+    setTimeout(() => { end(false); }, 1300);
+    return;
+  }
+  const base = $('#base');
+  if (base) { base.style.boxShadow = '0 0 22px 6px rgba(224,90,90,.85)'; base.style.borderColor = '#e05a5a'; setTimeout(() => { base.style.boxShadow = ''; base.style.borderColor = ''; }, 220); }
+  explodeSfx();
+}
+
+const TO_CANNON_MS = 800;
+function spawnToCannon(x, y, ch, delay = 0) {
+  const sid = gameSessionId;
+  setTimeout(() => {
+    if (sid !== gameSessionId || !running) return;
+    const el = document.createElement('div'); el.className = 'char tocannon';
+    el.textContent = (ch === ' ') ? '␣' : ch; el.style.fontSize = FS + 'px';
+    el.style.left = (x - STEP / 2) + 'px'; el.style.top = (y - FS / 2) + 'px';
+    el.style.setProperty('--dx', (cx - x) + 'px'); el.style.setProperty('--dy', (cy - y) + 'px');
+    game.appendChild(el); setTimeout(() => { if (sid !== gameSessionId) { el.remove(); return; } cannonHit(); el.remove(); }, TO_CANNON_MS);
+  }, delay);
+}
+
+function reachLine(w) {
+  w.state = 'crossed'; if (w.el) w.el.classList.add('missed');
+  const missedChars = w.len - w.pos;
+  miss += missedChars; 
+  if (missedChars > 0) {
+    combo = 0; hideCombo(); missSfx(); typedCount += missedChars;
+    for (let i = w.pos; i < w.len; i++) {
+      const p = charVisualPos(w, i);
+      spawnToCannon(p.x, p.y, w.text[i], (i - w.pos) * 90);
+      const s = w.charEls[i]; if (s) s.style.visibility = 'hidden';
+    }
+  }
+  if (targetCharEl && w.charEls.includes(targetCharEl)) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+}
+
+function wrong(w) {
+  const i = w.pos, p = charVisualPos(w, i);
+  fire(p.x, p.y, true); 
+  spawnToCannon(p.x, p.y, w.text[i]); // 产生1点伤害特效并扣血
+  const s = w.charEls[i]; 
+  // 错误字符不变宽塌陷，标记为红色留存
+  if (s) s.className = 'wchar wrong'; 
+  
+  combo = 0; hideCombo(); score = Math.max(0, score - 5); miss++; typedCount++;
+  barrel.style.background = '#e05a5a'; setTimeout(() => barrel.style.background = '', 120);
+  
+  // 标记本机本轮存在错误：飞机标红，最终不可摧毁/掉落道具，但剩余字符仍可继续输入
+  w.isFailed = true;
+  if (w.el) w.el.classList.add('failed');
+
+  w.pos++; // 仅跳过这个输错的字符，下一次输入继续处理同一架飞机的后续字符
+  // 若这是最后一个字符，则该失败飞机继续下坠；否则准星继续锁定它的下一个字符
+}
+
+function feedChar(ch) {
+  if (!/^[\x20-\x7E]$/.test(ch)) return;
+  normalizeIdx(); const w = (wIdx >= 0) ? words[wIdx] : null;
+  if (!w || w.state !== 'falling') return;
+  if (ch === w.text[w.pos]) correct(w); else wrong(w);
+}
+
+const typer = $('#typer');
+let composing = false;
+
+// 游戏过程中不再依赖文本输入框，而是直接读取 KeyboardEvent.code（物理键位）。
+// 这样系统即使处于中文输入法，也不会产生候选框/拼音组合，更不会在 Enter 时批量提交字符。
+const SHIFT_DIGITS = { Digit1:'!', Digit2:'@', Digit3:'#', Digit4:'$', Digit5:'%', Digit6:'^', Digit7:'&', Digit8:'*', Digit9:'(', Digit0:')' };
+const PUNCT_KEYS = {
+  Backquote:['`','~'], Minus:['-','_'], Equal:['=','+'],
+  BracketLeft:['[','{'], BracketRight:[']','}'], Backslash:['\\','|'],
+  Semicolon:[';',':'], Quote:["'",'"'], Comma:[',','<'], Period:['.','>'], Slash:['/','?'],
+  IntlBackslash:['\\','|']
+};
+
+function physicalKeyToAscii(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  const c = e.code || '';
+  if (/^Key[A-Z]$/.test(c)) {
+    const ch = c.slice(3);
+    return e.shiftKey ? ch : ch.toLowerCase();
+  }
+  if (/^Digit[0-9]$/.test(c)) return e.shiftKey ? SHIFT_DIGITS[c] : c.slice(5);
+  if (c === 'Space') return ' ';
+  if (PUNCT_KEYS[c]) return PUNCT_KEYS[c][e.shiftKey ? 1 : 0];
+  if (/^Numpad[0-9]$/.test(c)) return c.slice(6);
+  if (c === 'NumpadDecimal') return '.';
+  if (c === 'NumpadAdd') return '+';
+  if (c === 'NumpadSubtract') return '-';
+  if (c === 'NumpadMultiply') return '*';
+  if (c === 'NumpadDivide') return '/';
+  return null;
+}
+
+// 即使浏览器/系统意外尝试向隐藏输入框写入 IME 内容，也全部丢弃。
+typer.addEventListener('beforeinput', (e) => { e.preventDefault(); typer.value = ''; });
+typer.addEventListener('compositionstart', (e) => { composing = true; typer.value = ''; if (e.cancelable) e.preventDefault(); });
+typer.addEventListener('compositionupdate', (e) => { typer.value = ''; if (e.cancelable) e.preventDefault(); });
+typer.addEventListener('compositionend', (e) => { composing = false; typer.value = ''; if (e.cancelable) e.preventDefault(); });
+typer.addEventListener('input', () => { typer.value = ''; });
+typer.addEventListener('paste', (e) => { e.preventDefault(); typer.value = ''; });
+typer.addEventListener('copy', (e) => { e.preventDefault(); });
+typer.addEventListener('cut', (e) => { e.preventDefault(); typer.value = ''; });
+document.addEventListener('copy', (e) => { e.preventDefault(); });
+document.addEventListener('paste', (e) => { e.preventDefault(); });
+document.addEventListener('cut', (e) => { e.preventDefault(); });
+
+let enterHeld = false;
+document.addEventListener('keydown', (e) => {
+  // ESC 始终优先，哪怕操作系统刚好处于输入法组合状态也能退出游戏。
+  if (e.key === 'Escape' || e.code === 'Escape') {
+    if (running) {
+      e.preventDefault();
+      composing = false;
+      typer.value = '';
+      $('#exitBtn').click();
+    }
+    return;
+  }
+
+  // 非游戏界面保留 Enter 开始/重开。
+  if (!running) {
+    if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+      e.preventDefault();
+      if (!startScreen.classList.contains('hidden')) $('#startBtn').click();
+      else if (!endScreen.classList.contains('hidden')) $('#againBtn').click();
+    }
+    return;
+  }
+
+  // Windows/浏览器在中文 IME 组合阶段常返回 isComposing=true 或 keyCode=229。
+  // 游戏中直接吞掉这些事件，不允许候选文字、拼音串或回车提交进入游戏逻辑。
+  if (e.isComposing || composing || e.keyCode === 229 || e.key === 'Process') {
+    e.preventDefault();
+    typer.value = '';
+    return;
+  }
+
+  // 游戏内 Enter/F1 仍作为满能量导弹快捷键，但只响应非 IME 状态的真实按键。
+  if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter') {
+    e.preventDefault();
+    if (itemModeEnabled && energy >= MAX_ENERGY && !enterHeld) {
+      enterHeld = true;
+      fireMegaLaser();
+    }
+    return;
+  }
+
+  if (e.code === 'F1' && itemModeEnabled && energy >= MAX_ENERGY && !enterHeld) {
+    e.preventDefault(); enterHeld = true; fireMegaLaser(); return;
+  }
+
+  if (itemModeEnabled) {
+    if (e.code === 'F2') { e.preventDefault(); useItemF2(); return; }
+    if (e.code === 'F3') { e.preventDefault(); useItemF3(); return; }
+    if (e.code === 'F4') { e.preventDefault(); useItemF4(); return; }
+    if (e.code === 'F5') { e.preventDefault(); useItemF5(); return; }
+    if (e.code === 'F6') { e.preventDefault(); useItemF6(); return; }
+  }
+
+  // 真正的打字输入只看物理键位，不看 IME 转换后的 e.key 文本。
+  const ch = physicalKeyToAscii(e);
+  if (ch !== null) {
+    e.preventDefault();
+    feedChar(ch);
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'F1') enterHeld = false;
+});
+
+// ==== 道具功能 ====
+function showItemMsg(msg) {
+  const el = $('#itemMsg');
+  const slowEl = $('#slowTimer');
+
+  // 绿色提示统一为单实例：新提示出现时，先清除上一条可见提示。
+  if (slowEl) slowEl.style.display = 'none';
+  if (itemMsgTimer) { clearTimeout(itemMsgTimer); itemMsgTimer = null; }
+
+  el.textContent = msg;
+  el.style.display = 'block';
+  itemMsgTimer = setTimeout(() => {
+    el.style.display = 'none';
+    itemMsgTimer = null;
+  }, 2000);
+}
+
+function clearSlowMode(restoreSpeed = true) {
+  if (slowTimerInterval) { clearInterval(slowTimerInterval); slowTimerInterval = null; }
+  if (slowTimerTimeout) { clearTimeout(slowTimerTimeout); slowTimerTimeout = null; }
+  slowModeActive = false;
+  if (restoreSpeed) SPEED = BASE_SPEED;
+  const timerEl = $('#slowTimer');
+  if (timerEl) timerEl.style.display = 'none';
+}
+
+function startSlowCountdown(seconds = 5) {
+  clearSlowMode(false);
+  slowModeActive = true;
+  SPEED = BASE_SPEED * 0.5;
+
+  const timerEl = $('#slowTimer');
+  const itemEl = $('#itemMsg');
+  let remaining = seconds;
+  const renderCountdown = () => {
+    if (!timerEl) return;
+
+    // 倒计时本身也是绿色提示；出现时立即清除上一条提示，避免同位置叠加。
+    if (itemMsgTimer) { clearTimeout(itemMsgTimer); itemMsgTimer = null; }
+    if (itemEl) itemEl.style.display = 'none';
+
+    timerEl.textContent = `时间缓慢 ${remaining} 秒`;
+    timerEl.style.display = 'block';
+  };
+  renderCountdown();
+
+  const sid = gameSessionId;
+  slowTimerInterval = setInterval(() => {
+    if (sid !== gameSessionId || !running) { clearSlowMode(true); return; }
+    remaining -= 1;
+    if (remaining > 0) renderCountdown();
+  }, 1000);
+
+  slowTimerTimeout = setTimeout(() => {
+    if (sid !== gameSessionId) return;
+    clearSlowMode(true);
+  }, seconds * 1000);
+}
+
+function useItemF2() {
+  if (!itemF2Owned) return;
+  itemF2Owned = false;
+  let el = $('#item-f2');
+  el.classList.add('used');
+  setTimeout(() => { if(el) el.className = 'item-box disabled'; }, 350);
+  startSlowCountdown(5);
+  megaLaserSfx();
+}
+
+function useItemF3() {
+  if (!itemF3Owned) return;
+
+  // 先快照目标，避免边遍历边执行完整 killWord() 造成大量同步 DOM 创建与强制重绘。
+  const targets = words.filter(w => w.state === 'falling' && !w.isFailed);
+  if (!targets.length) return;
+
+  itemF3Owned = false;
+  const el = $('#item-f3');
+  el.classList.add('used');
+  setTimeout(() => { if (el) el.className = 'item-box disabled'; }, 350);
+
+  // 最多给 6 架飞机显示局部轻量爆炸，其余直接淡出；保证飞机很多时帧率仍稳定。
+  targets.forEach((w, i) => {
+    typedCount += Math.max(0, w.len - w.pos);
+    bombKillWord(w, i < 6);
+  });
+
+  // 清屏只做一次全局爆炸和音效，不触发屏幕抖动。
+  bigExplode(cx, Math.max(140, innerHeight * 0.45));
+  megaLaserSfx();
+  showItemMsg("F3: 炸弹清屏");
+  normalizeIdx();
+  updateHUD();
+}
+
+function useItemF4() {
+  if (!itemF4Owned) return;
+  
+  let el = $('#item-f4');
+  el.classList.add('used');
+  setTimeout(() => { if(el) el.className = 'item-box disabled'; }, 350);
+
+  const retreatDist = innerHeight * 0.4;
+  const retreatSpeed = retreatDist / 0.6; 
+  let maxDur = 0;
+  let anyRetreated = false;
+
+  for (const w of words) {
+    if (w.state === 'falling') {
+      const oldY = w.y; w.y -= retreatDist;
+      const actualDist = oldY - w.y, dur = actualDist / retreatSpeed;
+      if (dur > maxDur) maxDur = dur;
+      w._retreating = true;
+      if (w.el) {
+        w.el.classList.add('retreating'); w.el.style.transitionDuration = dur + 's';
+        w.el.style.top = (w.y - w.ph) + 'px';
+        setTimeout(() => {
+          w._retreating = false;
+          if (w.el) { w.el.classList.remove('retreating'); w.el.style.transitionDuration = ''; }
+        }, Math.max(dur * 1000, 50));
+      }
+      anyRetreated = true;
+    }
+  }
+
+  if (anyRetreated && maxDur > 0) {
+    itemF4Owned = false;
+    bgRetreat = true; retreatMsg.textContent = '全体后退'; retreatMsg.style.display = 'block'; retreatSfx();
+    setTimeout(() => { if (retreatMsg.textContent === '全体后退') retreatMsg.style.display = 'none'; bgRetreat = false; }, maxDur * 1000);
+    showItemMsg("F4: 全体后退");
+  } else {
+    setTimeout(() => { if(el) el.className = 'item-box'; }, 350);
+  }
+}
+
+function useItemF5() {
+  if (!itemF5Owned) return;
+  itemF5Owned = false;
+  let el = $('#item-f5');
+  el.classList.add('used');
+  setTimeout(() => { if(el) el.className = 'item-box disabled'; }, 350);
+  showItemMsg("F5: 连击模式开启");
+  
+  let count = 20;
+  let interval = setInterval(() => {
+    if (!running || count <= 0) { clearInterval(interval); return; }
+    normalizeIdx(); 
+    let w = (wIdx >= 0) ? words[wIdx] : null;
+    if (!w || w.state !== 'falling') { clearInterval(interval); return; }
+    w._autoKilled = true; 
+    correct(w); 
+    count--;
+  }, 50); 
+}
+
+function useItemF6() {
+  if (!itemF6Owned) return;
+  if (playerHP >= playerMaxHP) {
+    showItemMsg("F6: 生命值已满");
+    return;
+  }
+
+  const before = playerHP;
+  playerHP = Math.min(playerMaxHP, playerHP + 5);
+  const healed = playerHP - before;
+  itemF6Owned = false;
+
+  const el = $('#item-f6');
+  if (el) {
+    el.classList.add('used');
+    setTimeout(() => { if (el) el.className = 'item-box disabled heal-item'; }, 350);
+  }
+
+  updatePlayerHP();
+  showItemMsg(`F6: 回复 ${healed} 点生命`);
+}
+
+function loop(t) {
+  if (!running) return;
+  const dt = Math.min(0.05, (t - lastT) / 1000) || 0; lastT = t;
+  const dy = SPEED * dt;
+  activate(); normalizeIdx();
+  for (const w of words) {
+    if (w.state === 'falling' || w.state === 'passed' || w.state === 'crossed') {
+      if (w._retreating) continue;
+      w.y += dy; w.el.style.top = (w.y - w.ph) + 'px';
+      if (w.state === 'falling' && getTextCenterY(w) > MISSY) {
+        reachLine(w);
+      } else if ((w.state === 'passed' || w.state === 'crossed') && (w.y - w.ph) > innerHeight) {
+        w.state = 'gone'; if (w.el) w.el.remove();
+      }
+    }
+  }
+  normalizeIdx();
+  const flist = [];
+  for (const wd of words) if (wd.state === 'falling') flist.push(wd);
+  flist.sort((a, b) => getTextCenterY(a) - getTextCenterY(b));
+  flist.forEach((wd, idx) => { if (wd.el) wd.el.style.zIndex = 2 + idx; });
+  const w = (wIdx >= 0) ? words[wIdx] : null;
+  if (w && w.state === 'falling') {
+    const p = charVisualPos(w, w.pos);
+    barrel.style.transform = `rotate(${angleTo(p.x, p.y)}deg)`;
+    reticle.style.left = p.x + 'px'; reticle.style.top = p.y + 'px'; reticle.style.display = 'block';
+    const ch = w.charEls[w.pos];
+    if (targetCharEl !== ch) { if (targetCharEl) targetCharEl.classList.remove('target'); ch.classList.add('target'); targetCharEl = ch; }
+  } else {
+    reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+    if (targetCharEl) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+  }
+  updateHUD();
+  // 战斗结束以“是否还有待输入字符”为准，而不是等待所有残留飞机撞线。
+  // 因此：最后一个可击落目标被消灭后，已经输完的失败飞机即使仍在屏幕中，也不会拖延结算。
+  if (words.length && !hasAnyPendingInput()) {
+    running = false;
+    if (targetCharEl) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+    reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+    if (defenseLine) defenseLine.style.display = 'none';
+    hideCombo();
+
+    const sid = gameSessionId;
+    const hasFinalKillAnim = words.some(w => w.el && w.el.classList.contains('final-shaking'));
+    const endDelay = hasFinalKillAnim ? 1450 : 450;
+    setTimeout(() => {
+      if (sid !== gameSessionId) return;
+      // 结算前移除仍在屏幕上的失败/漏打残留飞机，避免它们留在结算界面背景中。
+      for (const wd of words) {
+        if (wd.state !== 'dead' && wd.el && wd.el.parentNode) wd.el.remove();
+      }
+      end(true);
+    }, endDelay);
+    return;
+  }
+  raf = requestAnimationFrame(loop);
+}
+
+function fmtTime(s) { const m = Math.floor(s / 60), ss = Math.floor(s % 60); return (m < 10 ? '0' : '') + m + ':' + (ss < 10 ? '0' : '') + ss; }
+
+function end(win) {
+  running = false;
+  clearSlowMode(true);
+  if (targetCharEl) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+  reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+  if (defenseLine) defenseLine.style.display = 'none';
+  showGameUI(false); hideCombo();
+  const cannon = $('#cannon'); if (cannon) cannon.classList.remove('exploding');
+  $('#endTitle').textContent = '战斗结束';
+  $('#endStats').innerHTML =
+    `<div class="stat-item"><span class="stat-icon">🎯</span><div class="stat-body"><span class="stat-label">击落</span><span class="stat-value green">${kills}</span></div></div>` +
+    `<div class="stat-item"><span class="stat-icon">⚔️</span><div class="stat-body"><span class="stat-label">命中</span><span class="stat-value">${hits}</span></div></div>` +
+    `<div class="stat-item"><span class="stat-icon">🔥</span><div class="stat-body"><span class="stat-label">最高连击</span><span class="stat-value gold">${maxCombo}</span></div></div>` +
+    `<div class="stat-item"><span class="stat-icon">💔</span><div class="stat-body"><span class="stat-label">受击</span><span class="stat-value red">${miss}</span></div></div>`;
+  $('#endTime').textContent = '';
+  if (win) winSfx(); else loseSfx();
+  endScreen.classList.remove('hidden');
+}
+
+function startGame() {
+  if (selectedLevel < 0) { $('#hint').textContent = '请先选择一个关卡'; return; }
+  const lv = LEVELS[selectedLevel];
+  clearSlowMode(false);
+  if (lv.name === '自定义') {
+    SPEED = getCustomSpeed();
+    const csInput = $('#customSpeed');
+    if (csInput) csInput.value = String(SPEED);
+  } else { SPEED = lv.speed; }
+  BASE_SPEED = SPEED;
+  $('#hint').textContent = '';
+  
+  itemModeEnabled = document.querySelector('input[name="gameMode"]:checked').value === 'item';
+  
+  itemF2Owned = false;
+  itemF3Owned = false;
+  itemF4Owned = false;
+  itemF5Owned = false;
+  
+  if (itemModeEnabled) {
+    $('#itemPanel').style.display = 'flex';
+    $('#item-f1').className = 'item-box disabled';
+    $('#item-f2').className = 'item-box disabled';
+    $('#item-f3').className = 'item-box disabled';
+    $('#item-f4').className = 'item-box disabled';
+    $('#item-f5').className = 'item-box disabled';
+    $('#item-f6').className = 'item-box disabled heal-item';
+  } else {
+    $('#itemPanel').style.display = 'none';
+  }
+
+  startScreen.classList.add('hidden'); endScreen.classList.add('hidden');
+  gameSessionId++;
+  showGameUI(true); initBoard();
+  if (defenseLine) defenseLine.style.display = 'block';
+  reticle.style.display = 'none'; retreatMsg.style.display = 'none';
+  if (targetCharEl) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+  hideCombo();
+  running = true; startT = lastT = performance.now();
+  try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); game.tabIndex = -1; game.focus({preventScroll:true}); } catch (e) {}
+  composing = false; typer.value = '';
+  raf = requestAnimationFrame(loop);
+}
+
+$('#startBtn').onclick = startGame;
+$('#againBtn').onclick = startGame;
+$('#importBtn').onclick = () => { if (selectedLevel < 0) { $('#hint').textContent = '请先选择一个关卡'; return; } fileInput.click(); };
+function resetToHome() {
+  running = false;
+  clearSlowMode(true);
+  gameSessionId++; // 让上一局尚未执行的延迟攻击/伤害回调全部失效
+  cancelAnimationFrame(raf);
+  bgRetreat = false;
+  if (itemMsgTimer) { clearTimeout(itemMsgTimer); itemMsgTimer = null; }
+  hideCombo();
+  if (targetCharEl) { targetCharEl.classList.remove('target'); targetCharEl = null; }
+  reticle.style.display = 'none';
+  retreatMsg.style.display = 'none';
+  $('#itemMsg').style.display = 'none';
+  if (defenseLine) defenseLine.style.display = 'none';
+
+  // 清理上一局全部动态对象，主页绝不保留游玩中的飞机/子弹/爆炸/字符碎片。
+  game.querySelectorAll('.word, .laser, .mega-laser, .flash, .particle, .explosion-flash, .shockwave, .eparticle, .edebris, .shard-char, .energy-orb, .char.tocannon').forEach(el => el.remove());
+  words = []; wIdx = -1; nextWait = 0; totalChars = 0; typedCount = 0;
+  score = combo = maxCombo = hits = miss = kills = 0;
+  playerHP = playerMaxHP; energy = 0;
+  itemF2Owned = itemF3Owned = itemF4Owned = itemF5Owned = itemF6Owned = false;
+  itemRewardGap = 99;
+  game.classList.remove('shakeBig');
+  const cannon = $('#cannon'); if (cannon) cannon.classList.remove('exploding');
+  updatePlayerHP(); renderEnergyBar(); updateHUD();
+
+  showGameUI(false);
+  endScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+  // 注意：这里故意不修改 CODE / usingImportedCode，导入程序跨“重开”和“返回主页”持续保留。
+  $('#hint').textContent = '';
+}
+
+$('#menuBtn').onclick = resetToHome;
+$('#exitBtn').onclick = resetToHome;
+$('#muteBtn').onclick = () => {
+  soundOn = !soundOn;
+  const btn = $('#muteBtn');
+  if (btn) {
+    btn.textContent = soundOn ? '🔊' : '🔇';
+    btn.classList.toggle('sound-off', !soundOn);
+    btn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+    btn.setAttribute('aria-label', soundOn ? '关闭声音' : '开启声音');
+    btn.title = soundOn ? '关闭声音' : '开启声音';
+  }
+};
+fileInput.onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { CODE = r.result; usingImportedCode = true; startGame(); }; r.readAsText(f);
+  e.target.value = '';
+};
+game.addEventListener('click', () => { if (running) { try { game.focus({preventScroll:true}); } catch(e) {} } });
+window.addEventListener('resize', () => { initBg(); if (running) { layout(); reposition(); } });
+initBg(); renderLevels(); bgRaf = requestAnimationFrame(bgLoop);
+</script>
+
+<style>
+/* 返回 + 全屏：与“键域防线”整体战术雷达风格统一 */
+.typing-ctrl {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 999999;
+    display: flex;
+    gap: 8px;
+    padding: 4px;
+    border: 1px solid rgba(70, 192, 138, .20);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(10, 18, 27, .82), rgba(4, 9, 15, .90));
+    box-shadow:
+        inset 0 0 18px rgba(63, 208, 255, .025),
+        0 6px 18px rgba(0, 0, 0, .24);
+    backdrop-filter: blur(6px);
+}
+.typing-ctrl .tc-btn {
+    position: relative;
+    height: 30px;
+    min-width: 78px;
+    padding: 0 13px;
+    border: 1px solid rgba(121, 128, 140, .38);
+    border-radius: 7px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, .012));
+    color: #aeb7c4;
+    font: 700 12px/1 system-ui;
+    letter-spacing: .8px;
+    cursor: pointer;
+    box-shadow: inset 0 0 10px rgba(255, 255, 255, .015);
+    transition:
+        color .18s ease,
+        border-color .18s ease,
+        background .18s ease,
+        box-shadow .18s ease,
+        transform .18s ease;
+}
+.typing-ctrl .tc-btn::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 2px;
+    background: rgba(91, 100, 114, .55);
+    transition: all .18s ease;
+}
+.typing-ctrl .tc-btn:hover {
+    color: #6ee0af;
+    border-color: rgba(70, 192, 138, .72);
+    background: linear-gradient(135deg, rgba(70, 192, 138, .12), rgba(63, 208, 255, .035));
+    box-shadow:
+        inset 0 0 14px rgba(70, 192, 138, .045),
+        0 0 10px rgba(70, 192, 138, .10);
+    transform: translateY(-1px);
+    filter: none;
+}
+.typing-ctrl .tc-btn:hover::before {
+    background: #46c08a;
+    box-shadow: 0 0 7px rgba(70, 192, 138, .75);
+}
+.typing-ctrl #tc-exitfs:hover {
+    color: #ffd24a;
+    border-color: rgba(255, 210, 74, .70);
+    background: linear-gradient(135deg, rgba(255, 210, 74, .10), rgba(255, 107, 61, .025));
+    box-shadow: 0 0 10px rgba(255, 210, 74, .10);
+}
+.typing-ctrl #tc-exitfs:hover::before {
+    background: #ffd24a;
+    box-shadow: 0 0 7px rgba(255, 210, 74, .70);
+}
+/* 声音、返回、全屏统一为同一控制组；原游戏内返回仅保留快捷键逻辑 */
+#exitBtn { display: none !important; }
+.typing-ctrl #muteBtn {
+    position: relative;
+    top: auto;
+    right: auto;
+    z-index: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+}
+.typing-ctrl #muteBtn:not(.sound-off) {
+    color: #6ee0af;
+    border-color: rgba(70, 192, 138, .52);
+    background: linear-gradient(135deg, rgba(70, 192, 138, .10), rgba(63, 208, 255, .025));
+}
+.typing-ctrl #muteBtn:not(.sound-off)::before {
+    background: #46c08a;
+    box-shadow: 0 0 7px rgba(70, 192, 138, .58);
+}
+.typing-ctrl #muteBtn.sound-off {
+    color: #8d96a3;
+}
+.typing-ctrl #muteBtn.sound-off::before {
+    background: #5b6472;
+    box-shadow: none;
+}
+/* 图标化控制组：三个可见按钮保持完全一致的方形尺寸 */
+.typing-ctrl {
+    gap: 4px;
+    padding: 4px;
+    border-radius: 10px;
+}
+.typing-ctrl .tc-icon-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    font-family: -apple-system, "Segoe UI Symbol", "Segoe UI Emoji", system-ui, sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
+}
+.typing-ctrl .tc-icon-btn::before {
+    display: none;
+}
+.typing-ctrl #tc-back,
+.typing-ctrl #tc-fs,
+.typing-ctrl #tc-exitfs {
+    color: #aeb7c4;
+}
+.typing-ctrl #tc-back:hover,
+.typing-ctrl #tc-fs:hover {
+    color: #6ee0af;
+}
+.typing-ctrl #tc-exitfs {
+    color: #d8ad45;
+    border-color: rgba(216, 173, 69, .40);
+}
+.typing-ctrl #tc-exitfs:hover {
+    color: #ffd24a;
+    border-color: rgba(255, 210, 74, .72);
+}
+.typing-ctrl #muteBtn {
+    font-size: 16px;
+}
+@media (max-width: 760px) {
+    .typing-ctrl {
+        right: 8px;
+        top: 8px;
+        gap: 3px;
+        padding: 3px;
+    }
+    .typing-ctrl .tc-icon-btn {
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+}
+</style>
+<script>
+(function () {
+    var back = document.getElementById('tc-back');
+    var fs = document.getElementById('tc-fs');
+    var exitfs = document.getElementById('tc-exitfs');
+    if (back) back.addEventListener('click', function () {
+        try { window.parent.postMessage('kuaioj:typing:exit', '*'); } catch (e) {}
+    });
+    function enterFs() {
+        var el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+    function exitFs() {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+    if (fs) fs.addEventListener('click', enterFs);
+    if (exitfs) exitfs.addEventListener('click', exitFs);
+    function sync() {
+        var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        document.body.classList.toggle('tc-fullscreen', isFs);
+        if (fs) fs.style.display = isFs ? 'none' : '';
+        if (exitfs) exitfs.style.display = isFs ? '' : 'none';
+    }
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+})();
+</script>
+</body>
+</html>
